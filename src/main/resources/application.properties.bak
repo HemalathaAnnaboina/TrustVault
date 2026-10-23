@@ -1,0 +1,28 @@
+spring.application.name=trustvault-backend
+server.port=8080
+
+# Relational Database Storage (Persistent File-based H2 Database with AUTO_SERVER mode)
+spring.datasource.url=jdbc:h2:file:./data/trustvault_db;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=trustvault_secure_pwd_123!
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.format_sql=false
+
+# Disable H2 Console for production security
+spring.h2.console.enabled=false
+
+# File Upload Limits
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=50MB
+
+# TrustVault Security Configuration
+trustvault.jwt.secret=TrustVaultSuperSecureKeyMustBeAtLeast256BitsLongForHMACSHA256Signature123456789!
+trustvault.jwt.expiration-ms=86400000
+trustvault.storage.path=./data/vault
+trustvault.storage.max-file-size=52428800
+trustvault.download-token.expiration-seconds=60
+
+# Rate Limiting: 10 login attempts per minute per IP
+trustvault.rate-limit.login-per-minute=10
