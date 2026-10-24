@@ -20,11 +20,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import com.trustvault.security.RateLimitingFilter;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -922,5 +925,103 @@ public class TrustVaultSecurityTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Security Test 30: Rate limiting blocks brute-force login attempts (10 req/min/IP)")
+    void testRateLimitingOnLoginEndpoint() throws Exception {
+        // Test RateLimitingFilter with the documented production limit of 10 requests per minute
+        RateLimitingFilter filter = new RateLimitingFilter(10);
+        String attackerIp = "198.51.100.77";
+
+        // Attempts 1 to 10 should pass through filterChain
+        for (int i = 1; i <= 10; i++) {
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/auth/login");
+            req.addHeader("X-Forwarded-For", attackerIp);
+            MockHttpServletResponse res = new MockHttpServletResponse();
+            filter.doFilter(req, res, (request, response) -> ((jakarta.servlet.http.HttpServletResponse) response).setStatus(401));
+            assertThat(res.getStatus()).isEqualTo(401);
+        }
+
+        // Attempt 11 from the same IP must be rejected with 429 Too Many Requests
+        MockHttpServletRequest req11 = new MockHttpServletRequest("POST", "/api/auth/login");
+        req11.addHeader("X-Forwarded-For", attackerIp);
+        MockHttpServletResponse res11 = new MockHttpServletResponse();
+        filter.doFilter(req11, res11, (request, response) -> ((jakarta.servlet.http.HttpServletResponse) response).setStatus(401));
+        assertThat(res11.getStatus()).isEqualTo(429);
+        assertThat(res11.getContentAsString()).contains("Rate limit exceeded. Please try again after 1 minute.");
+
+        // Another IP should not be blocked
+        MockHttpServletRequest reqOther = new MockHttpServletRequest("POST", "/api/auth/login");
+        reqOther.addHeader("X-Forwarded-For", "198.51.100.88");
+        MockHttpServletResponse resOther = new MockHttpServletResponse();
+        filter.doFilter(reqOther, resOther, (request, response) -> ((jakarta.servlet.http.HttpServletResponse) response).setStatus(401));
+        assertThat(resOther.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("Security Test 31: Generic error responses prevent internal stack trace and filesystem path leakage")
+    void testInformationLeakagePreventedInErrorResponses() throws Exception {
+        // 1. Nonexistent endpoint accessed with valid token returns 404 without stack traces
+        MvcResult result404 = mockMvc.perform(get("/api/nonexistent-security-probe-path")
+                        .header("Authorization", "Bearer " + viewer2Token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andReturn();
+
+        String body404 = result404.getResponse().getContentAsString();
+        assertThat(body404).doesNotContain("Exception", "org.springframework", "com.trustvault", "NullPointerException", "at ");
+
+        // 2. Unauthenticated request to protected endpoint returns 401 without stack trace
+        MvcResult result401 = mockMvc.perform(get("/api/documents"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andReturn();
+
+        String body401 = result401.getResponse().getContentAsString();
+        assertThat(body401).doesNotContain("Exception", "org.springframework", "com.trustvault", "at ");
+
+        // 3. Malformed JSON payload to /api/auth/login returns 400 without stack trace
+        MvcResult result400 = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"admin@trustvault.local\", \"password\": broken-json}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andReturn();
+
+        String body400 = result400.getResponse().getContentAsString();
+        assertThat(body400).doesNotContain("at com.", "org.springframework", "Exception:", "data/vault");
+
+        // 4. Unauthorized access to document returns 403 without SQL or storage paths
+        MvcResult result403 = mockMvc.perform(get("/api/documents/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + viewer2Token))
+                .andReturn();
+
+        String body403 = result403.getResponse().getContentAsString();
+        assertThat(body403).doesNotContain("SQLException", "Hibernate", "SELECT", "INSERT", "org.hibernate");
+    }
+
+    @Test
+    @DisplayName("Security Test 32: Upload exceeding 50 MB is rejected to prevent denial of service")
+    void testOversizedMultipartUploadRejected() throws Exception {
+        // Mock file that reports 60 MB size (greater than 50 MB / 52428800 bytes limit)
+        MockMultipartFile oversizedFile = new MockMultipartFile(
+                "file",
+                "huge_archive.pdf",
+                "application/pdf",
+                "%PDF-1.4 Mock header".getBytes()
+        ) {
+            @Override
+            public long getSize() {
+                return 60L * 1024 * 1024; // 60 MB
+            }
+        };
+
+        mockMvc.perform(multipart("/api/documents/upload")
+                        .file(oversizedFile)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("exceeds maximum allowed size")));
     }
 }

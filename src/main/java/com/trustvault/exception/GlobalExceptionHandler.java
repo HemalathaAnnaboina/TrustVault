@@ -97,6 +97,34 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage(), request.getRequestURI(), null);
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodArgumentTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request
+    ) {
+        log.warn("Parameter type mismatch on {}: parameter '{}' with value '{}' could not be converted to {}",
+                request.getRequestURI(), ex.getName(), ex.getValue(), ex.getRequiredType());
+        return buildResponse(HttpStatus.BAD_REQUEST, "Invalid parameter value for: " + ex.getName(), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingServletRequestPart(
+            org.springframework.web.multipart.support.MissingServletRequestPartException ex,
+            HttpServletRequest request
+    ) {
+        log.warn("Missing request part on {}: {}", request.getRequestURI(), ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, "Required multipart parameter missing: " + ex.getRequestPartName(), request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingServletRequestParameter(
+            org.springframework.web.bind.MissingServletRequestParameterException ex,
+            HttpServletRequest request
+    ) {
+        log.warn("Missing request parameter on {}: {}", request.getRequestURI(), ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, "Required parameter missing: " + ex.getParameterName(), request.getRequestURI(), null);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex, HttpServletRequest request) {
         log.error("Unhandled server exception on " + request.getRequestURI(), ex);

@@ -25,7 +25,9 @@ export interface DocumentItem {
   ownerEmail: string
   projectId: string | null
   projectName: string | null
-  userAccessLevel: 'OWNER' | 'EDIT' | 'READ' | 'NONE'
+  userAccessLevel: 'OWNER' | 'EDIT' | 'READ' | 'NONE' | 'REVOKED' | 'EXPIRED' | 'SUSPENDED'
+  canRead?: boolean
+  canEdit?: boolean
   expiresAt: string | null
   isExpiringSoon: boolean
   createdAt: string
@@ -66,6 +68,13 @@ export interface CreateProjectPayload {
   members?: MemberAllocationPayload[]
   existingDocumentIds?: string[]
   permissions?: DocumentPermissionAssignmentPayload[]
+}
+
+export interface UploadDocumentPayload {
+  file: File
+  title?: string
+  category?: string
+  projectId?: string
 }
 
 export interface ProjectItem {
@@ -413,8 +422,11 @@ export const api = {
   },
 
   // Documents
-  async getDocuments(query?: string): Promise<DocumentItem[]> {
-    const q = query ? `?query=${encodeURIComponent(query)}` : ''
+  async getDocuments(query?: string, projectId?: string): Promise<DocumentItem[]> {
+    const params = new URLSearchParams()
+    if (query && query.trim()) params.append('query', query.trim())
+    if (projectId && projectId.trim()) params.append('projectId', projectId.trim())
+    const q = params.toString() ? `?${params.toString()}` : ''
     return request<DocumentItem[]>(`/documents${q}`)
   },
 
@@ -429,11 +441,27 @@ export const api = {
     return request<DocumentItem>(`/documents/${id}`)
   },
 
-  async uploadDocument(formData: FormData): Promise<DocumentItem> {
+  async uploadDocument(data: FormData | UploadDocumentPayload): Promise<DocumentItem> {
     const token = getToken()
     const headers: Record<string, string> = {}
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
+    }
+    let formData: FormData
+    if (data instanceof FormData) {
+      formData = data
+    } else {
+      formData = new FormData()
+      formData.append('file', data.file)
+      if (data.title && data.title.trim()) {
+        formData.append('title', data.title.trim())
+      }
+      if (data.category && data.category.trim()) {
+        formData.append('category', data.category.trim())
+      }
+      if (data.projectId && data.projectId.trim()) {
+        formData.append('projectId', data.projectId.trim())
+      }
     }
     const res = await fetch(`${API_BASE}/documents`, {
       method: 'POST',

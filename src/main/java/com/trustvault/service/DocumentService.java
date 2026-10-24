@@ -598,6 +598,16 @@ public class DocumentService {
             }
         }
 
+        boolean canRead = "OWNER".equals(accessLevel) || "EDIT".equals(accessLevel) || "READ".equals(accessLevel);
+        boolean canEdit = "OWNER".equals(accessLevel) || "EDIT".equals(accessLevel);
+
+        if (canEdit && d.getProject() != null && currentUser != null && !authorizationService.isDocumentOwner(currentUser, d) && !currentUser.isAdmin()) {
+            Optional<ProjectMember> pm = projectMemberRepository.findByProjectIdAndUserId(d.getProject().getId(), currentUser.getId());
+            if (pm.isPresent() && !pm.get().isCanEdit()) {
+                canEdit = false;
+            }
+        }
+
         return new DocumentDto(
                 d.getId(),
                 d.getTitle(),
@@ -620,7 +630,9 @@ public class DocumentService {
                 d.getVersion(),
                 isStarred,
                 clientId,
-                clientName
+                clientName,
+                canRead,
+                canEdit
         );
     }
 

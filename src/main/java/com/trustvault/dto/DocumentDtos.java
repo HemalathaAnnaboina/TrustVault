@@ -27,9 +27,11 @@ public class DocumentDtos {
             int version,
             boolean isStarred,
             UUID clientId,
-            String clientName
+            String clientName,
+            boolean canRead,
+            boolean canEdit
     ) {
-        // Backward compatibility constructor
+        // Backward compatibility constructor (18 fields)
         public DocumentDto(
                 UUID id, String title, String originalFilename, String category,
                 String contentType, long fileSizeBytes, String formattedSize,
@@ -40,7 +42,26 @@ public class DocumentDtos {
             this(id, title, originalFilename, category, contentType, fileSizeBytes,
                     formattedSize, sha256Checksum, ownerId, ownerName, ownerEmail,
                     projectId, projectName, userAccessLevel, expiresAt, isExpiringSoon,
-                    createdAt, updatedAt, 1, false, null, null);
+                    createdAt, updatedAt, 1, false, null, null,
+                    "OWNER".equals(userAccessLevel) || "EDIT".equals(userAccessLevel) || "READ".equals(userAccessLevel),
+                    "OWNER".equals(userAccessLevel) || "EDIT".equals(userAccessLevel));
+        }
+
+        // Backward compatibility constructor (22 fields)
+        public DocumentDto(
+                UUID id, String title, String originalFilename, String category,
+                String contentType, long fileSizeBytes, String formattedSize,
+                String sha256Checksum, UUID ownerId, String ownerName, String ownerEmail,
+                UUID projectId, String projectName, String userAccessLevel,
+                Instant expiresAt, boolean isExpiringSoon, Instant createdAt, Instant updatedAt,
+                int version, boolean isStarred, UUID clientId, String clientName
+        ) {
+            this(id, title, originalFilename, category, contentType, fileSizeBytes,
+                    formattedSize, sha256Checksum, ownerId, ownerName, ownerEmail,
+                    projectId, projectName, userAccessLevel, expiresAt, isExpiringSoon,
+                    createdAt, updatedAt, version, isStarred, clientId, clientName,
+                    "OWNER".equals(userAccessLevel) || "EDIT".equals(userAccessLevel) || "READ".equals(userAccessLevel),
+                    "OWNER".equals(userAccessLevel) || "EDIT".equals(userAccessLevel));
         }
     }
 
