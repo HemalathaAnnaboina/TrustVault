@@ -64,3 +64,10 @@ frontend_integration/dist/
 
 # Logs
 *.log
+frontend/node_modules/
+frontend/.next/
+frontend/.env*
+frontend/*.bak
+frontend/**/*.bak
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts

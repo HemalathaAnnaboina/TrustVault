@@ -1,0 +1,451 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ==========================================================================
+   Tailwind v4 / shadcn mappings
+   ========================================================================== */
+@theme inline {
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ==========================================================================
+   TrustVault Centralized Theme System
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* TrustVault Light Theme Tokens */
+  --tv-bg-page: #F8FAFC;
+  --tv-bg-card: #FFFFFF;
+  --tv-bg-card-hover: #F1F5F9;
+  --tv-bg-muted: #F8FAFC;
+  --tv-bg-sidebar: #FFFFFF;
+  --tv-border: #E2E8F0;
+  --tv-border-subtle: #F1F5F9;
+  --tv-border-strong: #CBD5E1;
+
+  /* Typography Colors - Light Theme */
+  --tv-heading: #111827;
+  --tv-body: #1F2937;
+  --tv-label: #111827;
+  --tv-table: #111827;
+  --tv-secondary: #374151;
+  --tv-input-text: #111827;
+  --tv-input-bg: #FFFFFF;
+  --tv-placeholder: #6B7280;
+
+  /* Green Accent Palette */
+  --tv-green-primary: #059669;
+  --tv-green-hover: #047857;
+  --tv-green-text: #FFFFFF;
+  --tv-green-subtle: #ECFDF5;
+  --tv-green-border: #A7F3D0;
+  --tv-green-fg: #065F46;
+
+  /* Standard compatibility variables */
+  --background: #F8FAFC;
+  --foreground: #1F2937;
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --popover: #FFFFFF;
+  --popover-foreground: #111827;
+  --primary: #059669;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #111827;
+  --muted: #F1F5F9;
+  --muted-foreground: #374151;
+  --accent: #F1F5F9;
+  --accent-foreground: #111827;
+  --destructive: #DC2626;
+  --border: #E2E8F0;
+  --input: #CBD5E1;
+  --ring: #059669;
+  --radius: 0.625rem;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* TrustVault Dark Blue Theme Tokens */
+  --tv-bg-page: #0B132B;
+  --tv-bg-card: #131E3D;
+  --tv-bg-card-hover: #19274E;
+  --tv-bg-muted: #1A264A;
+  --tv-bg-sidebar: #0D1633;
+  --tv-border: #24355E;
+  --tv-border-subtle: #192648;
+  --tv-border-strong: #334774;
+
+  /* Typography Colors - Dark Blue Theme */
+  --tv-heading: #FFFFFF;
+  --tv-body: #F3F4F6;
+  --tv-label: #E5E7EB;
+  --tv-table: #E5E7EB;
+  --tv-secondary: #CBD5E1;
+  --tv-input-text: #FFFFFF;
+  --tv-input-bg: #19274E;
+  --tv-placeholder: #AAB8C8;
+
+  /* Green Accent Palette */
+  --tv-green-primary: #10B981;
+  --tv-green-hover: #059669;
+  --tv-green-text: #FFFFFF;
+  --tv-green-subtle: rgba(16, 185, 129, 0.16);
+  --tv-green-border: rgba(16, 185, 129, 0.45);
+  --tv-green-fg: #34D399;
+
+  /* Standard compatibility variables */
+  --background: #0B132B;
+  --foreground: #F3F4F6;
+  --card: #131E3D;
+  --card-foreground: #FFFFFF;
+  --popover: #131E3D;
+  --popover-foreground: #FFFFFF;
+  --primary: #10B981;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1A264A;
+  --secondary-foreground: #E5E7EB;
+  --muted: #1A264A;
+  --muted-foreground: #CBD5E1;
+  --accent: #19274E;
+  --accent-foreground: #FFFFFF;
+  --destructive: #F87171;
+  --border: #24355E;
+  --input: #334774;
+  --ring: #10B981;
+  --radius: 0.625rem;
+}
+
+/* ==========================================================================
+   Typography Standards
+   ========================================================================== */
+
+@layer base {
+  html {
+    font-family: var(--font-inter, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--tv-bg-page);
+    color: var(--tv-body);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Headings: Main page headings 24-32px, section headings 18-22px */
+  h1 {
+    font-size: clamp(24px, 2.4vw, 32px);
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--tv-heading);
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: clamp(18px, 1.8vw, 22px);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--tv-heading);
+    letter-spacing: -0.015em;
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tv-heading);
+  }
+
+  h4, h5, h6 {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--tv-heading);
+  }
+
+  p {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--tv-body);
+  }
+
+  /* Form Labels: 14-16px, medium or semibold */
+  label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--tv-label);
+    line-height: 1.4;
+  }
+
+  /* Form Controls */
+  input, select, textarea {
+    font-size: 14px;
+    color: var(--tv-input-text);
+    background-color: var(--tv-input-bg);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--tv-placeholder);
+    opacity: 1;
+  }
+
+  /* Table Content: At least 14px */
+  table {
+    font-size: 14px;
+    color: var(--tv-table);
+  }
+
+  th {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--tv-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  td {
+    font-size: 14px;
+    color: var(--tv-table);
+    line-height: 1.4;
+  }
+
+  button, input, select, textarea {
+    font-family: inherit;
+  }
+}
+
+/* ==========================================================================
+   Centralized Contrast Enforcements
+   ========================================================================== */
+
+/* Light Theme Contrast Rules */
+html:not(.dark) {
+  /* Prevent pale gray text */
+  .text-neutral-400, .text-slate-400, .text-gray-400, 
+  [class*="text-[#8194ad]"], [class*="text-[#7d90a8]"], [class*="text-[#8ba0bf]"] {
+    color: #4B5563 !important;
+  }
+  .text-neutral-500, .text-slate-500, .text-gray-500, 
+  [class*="text-[#52637f]"], [class*="text-[#71829d]"], [class*="text-[#64748b]"], [class*="text-[#64748B]"] {
+    color: #374151 !important;
+  }
+  .text-neutral-600, .text-neutral-700, .text-slate-700, [class*="text-[#475569]"] {
+    color: #1F2937 !important;
+  }
+  .text-neutral-900, .text-neutral-800, [class*="text-[#14213d]"], [class*="text-[#14213D]"], .text-slate-900, .text-black {
+    color: #111827 !important;
+  }
+
+  /* Form inputs in light mode */
+  input, select, textarea {
+    border-color: #CBD5E1 !important;
+    color: #111827 !important;
+    background-color: #FFFFFF !important;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #6B7280 !important;
+  }
+
+  /* Green buttons */
+  button.bg-emerald-600, button.bg-emerald-500, button.bg-green-600, .bg-emerald-600, .bg-emerald-500 {
+    background-color: var(--tv-green-primary) !important;
+    color: #FFFFFF !important;
+  }
+}
+
+/* Dark Blue Theme Contrast Rules */
+html.dark {
+  /* Backgrounds */
+  body, .bg-neutral-50, .bg-slate-50,
+  [class*="bg-[#f4f8fd]"], [class*="bg-[#f8fafc]"] {
+    background-color: var(--tv-bg-page) !important;
+    color: var(--tv-body) !important;
+  }
+
+  /* Cards, Modals, Panels, Menus */
+  .bg-white {
+    background-color: var(--tv-bg-card) !important;
+    color: var(--tv-body) !important;
+  }
+
+  /* Sub-cards and nested containers */
+  .bg-neutral-100, .bg-slate-100,
+  [class*="bg-[#f8fbff]"], [class*="bg-[#fafcff]"], [class*="bg-[#f3f7fd]"], [class*="bg-[#edf4ff]"] {
+    background-color: var(--tv-bg-muted) !important;
+    border-color: var(--tv-border) !important;
+  }
+
+  /* Hover states */
+  .hover\:bg-neutral-50:hover, .hover\:bg-slate-50:hover, .hover\:bg-neutral-100:hover,
+  [class*="hover:bg-[#fafcff]"]:hover, [class*="hover:bg-[#f8fbff]"]:hover,
+  [class*="hover:bg-[#f3f7fd]"]:hover, [class*="hover:bg-[#edf4ff]"]:hover {
+    background-color: var(--tv-bg-card-hover) !important;
+  }
+
+  /* Borders */
+  .border-neutral-200, .border-neutral-100, .border-slate-200,
+  [class*="border-[#d8e2ef]"], [class*="border-[#e2eaf5]"], [class*="border-[#e5ebf4]"],
+  [class*="border-[#eef4fa]"], [class*="border-[#E2E8F0]"], [class*="border-[#CBD5E1]"] {
+    border-color: var(--tv-border) !important;
+  }
+
+  .divide-neutral-100 > :not([hidden]) ~ :not([hidden]),
+  .divide-neutral-200 > :not([hidden]) ~ :not([hidden]),
+  .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--tv-border) !important;
+  }
+
+  /* Headings: Main headings #FFFFFF */
+  h1, h2, h3, h4, h5, h6,
+  .text-neutral-900, .text-neutral-800, .text-slate-900, .text-black,
+  [class*="text-[#14213d]"], [class*="text-[#14213D]"] {
+    color: var(--tv-heading) !important;
+  }
+
+  /* Body text: #F3F4F6 */
+  p, .text-neutral-700, .text-neutral-600, .text-slate-700, [class*="text-[#475569]"] {
+    color: var(--tv-body) !important;
+  }
+
+  /* Labels and Table Content: #E5E7EB */
+  label, td, .table-cell, .text-neutral-800 {
+    color: var(--tv-label) !important;
+  }
+
+  /* Secondary text: #CBD5E1 */
+  th, .text-neutral-500, .text-slate-500,
+  [class*="text-[#52637f]"], [class*="text-[#71829d]"], [class*="text-[#64748b]"], [class*="text-[#64748B]"] {
+    color: var(--tv-secondary) !important;
+  }
+
+  /* Placeholder text & hints: #AAB8C8 */
+  .text-neutral-400, .text-slate-400,
+  [class*="text-[#8194ad]"], [class*="text-[#7d90a8]"], [class*="text-[#8ba0bf]"] {
+    color: var(--tv-placeholder) !important;
+  }
+
+  /* Form Controls */
+  input, select, textarea {
+    background-color: var(--tv-input-bg) !important;
+    border-color: var(--tv-border-strong) !important;
+    color: var(--tv-input-text) !important;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--tv-placeholder) !important;
+  }
+
+  /* Table Headers & Rows */
+  tr.bg-neutral-50, [class*="tr.bg-[#f8fafc]"], thead tr {
+    background-color: var(--tv-bg-muted) !important;
+  }
+
+  th {
+    background-color: var(--tv-bg-muted) !important;
+    border-color: var(--tv-border) !important;
+  }
+
+  td {
+    border-color: var(--tv-border) !important;
+  }
+
+  /* Sidebar Navigation */
+  aside, aside.bg-white {
+    background-color: var(--tv-bg-sidebar) !important;
+    border-color: var(--tv-border) !important;
+  }
+
+  header, header.bg-white, [class*="header.bg-white/95"] {
+    background-color: rgba(13, 22, 51, 0.95) !important;
+    border-color: var(--tv-border) !important;
+  }
+
+  footer, footer.bg-white {
+    background-color: var(--tv-bg-sidebar) !important;
+    border-color: var(--tv-border) !important;
+    color: var(--tv-secondary) !important;
+  }
+
+  /* Green accents for primary actions */
+  button.bg-emerald-600, button.bg-emerald-500, button.bg-green-600, .btn-green, .bg-emerald-600, .bg-emerald-500 {
+    background-color: var(--tv-green-primary) !important;
+    color: #FFFFFF !important;
+  }
+  button.bg-emerald-600:hover, button.bg-emerald-500:hover, button.bg-green-600:hover, .btn-green:hover {
+    background-color: var(--tv-green-hover) !important;
+  }
+
+  /* Status Badges in Dark Mode */
+  .bg-emerald-50, .bg-green-50 {
+    background-color: rgba(16, 185, 129, 0.16) !important;
+    border-color: rgba(16, 185, 129, 0.4) !important;
+    color: #34D399 !important;
+  }
+
+  .bg-amber-50, .bg-yellow-50 {
+    background-color: rgba(245, 158, 11, 0.16) !important;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+    color: #FCD34D !important;
+  }
+
+  .bg-rose-50, .bg-red-50 {
+    background-color: rgba(244, 63, 94, 0.16) !important;
+    border-color: rgba(244, 63, 94, 0.4) !important;
+    color: #FDA4AF !important;
+  }
+
+  .bg-blue-50, .bg-sky-50 {
+    background-color: rgba(59, 130, 246, 0.16) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+    color: #93C5FD !important;
+  }
+
+  /* Ensure modal backdrop is dark and high contrast */
+  [class*="bg-black/40"], [class*="bg-black/50"] {
+    background-color: rgba(3, 7, 18, 0.75) !important;
+  }
+}
