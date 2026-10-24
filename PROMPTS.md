@@ -1893,5 +1893,197 @@ Review deployment output
 
 Correct build deployed
 
+Entry 09 — Document API 400 Bad Request Debugging
+
+Date: 24/10/2026
+Role: Developer / Manager
+Category: Backend Debugging — API Validation and Error Handling
+Technology: Java, Spring Boot, Spring Security, PostgreSQL, Next.js, REST APIs
+
+1. Development Context
+
+While testing TrustVault's Manager dashboard, I encountered an API error while loading document information.
+
+The browser console reported a 400 Bad Request response for a request involving the document API.
+
+The endpoint involved was:
+
+GET http://localhost:8080/api/documents
+
+This affected the document-management workflow because the Manager dashboard depended on backend responses to display uploaded documents.
+
+My objective was to identify why the backend rejected the request and correct the underlying issue without weakening authentication, document authorization, or project isolation.
+
+2. My Prompt to AI
+
+Act as a senior Java Spring Boot and Next.js debugging engineer. Help me investigate a 400 Bad Request error in my TrustVault document-management application.
+
+Technology stack:
+
+Frontend: Next.js and React.
+
+Backend: Java Spring Boot with Spring Security.
+
+Database: PostgreSQL.
+
+Authentication: JWT.
+
+Observed issue:
+
+The Manager dashboard makes a request to:
+
+http://localhost:8080/api/documents
+
+The request returns HTTP 400 Bad Request.
+
+As a result, the frontend cannot reliably load the document list.
+
+Investigation instructions:
+
+Locate the controller method handling GET /api/documents.
+
+Check whether the endpoint requires query parameters such as projectId, category, or pagination values.
+
+Compare the frontend request with the controller's actual method signature.
+
+Inspect Spring Boot logs for missing parameters, invalid values, binding errors, or validation failures.
+
+Check whether the frontend is sending undefined, null, or incorrectly formatted parameter values.
+
+Verify that the frontend uses the correct HTTP method and API base URL.
+
+Inspect the response body to identify the exact validation failure.
+
+Review JWT authentication and authorization separately from request validation.
+
+Identify the root cause before proposing code changes.
+
+Apply the smallest correction and explain why it resolves the error.
+
+Security constraints:
+
+Do not remove required parameters simply to bypass validation.
+
+Do not disable Spring Security or authorization checks.
+
+Do not expose all documents when a project identifier is missing.
+
+Do not trust client-supplied user IDs as proof of ownership.
+
+Preserve Manager project ownership and Workshop Member document permissions.
+
+Return safe, understandable error responses without exposing internal database details.
+
+Add regression tests for valid, missing, and malformed request parameters.
+
+Explain the investigation process, confirmed root cause, necessary changes, and verification steps.
+
+3. What AI Produced
+
+The proposed AI-assisted debugging approach was to compare the frontend API request with the backend controller's expected parameters.
+
+It focused on inspecting request mappings, required query parameters, parameter types, and the server's error response.
+
+The approach also separated HTTP request-validation failures from authentication and authorization failures.
+
+For example, an HTTP 400 response may indicate invalid request input, whereas authentication and authorization failures commonly result in HTTP 401 or 403 responses.
+
+This is a retrospective summary of the intended debugging approach. The original AI output and actual fix must be verified before submission.
+
+4. What Went Wrong
+
+The observed problem was that the document API returned HTTP 400.
+
+One possible explanation is a mismatch between the frontend request and the backend controller's expected parameters.
+
+For example, consider this illustrative controller:
+
+@GetMapping("/api/documents")
+public ResponseEntity<?> getDocuments(
+        @RequestParam Long projectId) {
+
+    return ResponseEntity.ok(
+        documentService.getDocuments(projectId));
+}
+
+If the frontend sends:
+
+fetch("http://localhost:8080/api/documents");
+
+without the required projectId, Spring Boot may reject the request with HTTP 400.
+
+However, this is only one possible cause. The actual error could also involve malformed parameters, request binding, validation, or another controller-level issue.
+
+Important: The controller and frontend examples above are illustrative. They are not verified excerpts from the TrustVault repository, and the exact root cause has not been established here.
+
+5. My Correction and Refined Instructions
+
+I refined the debugging requirements to ensure the API contract was corrected without creating a security vulnerability.
+
+The intended steps were:
+
+Inspect the exact browser Network request.
+
+Read the backend's HTTP 400 response body.
+
+Check the Spring Boot console for the corresponding error.
+
+Compare frontend parameters with the controller method signature.
+
+Verify that required parameters are present and correctly formatted.
+
+Validate project IDs and other request inputs.
+
+Confirm that the authenticated Manager is authorized to access the requested project.
+
+Avoid replacing restricted document queries with unrestricted database queries.
+
+Update the frontend or backend contract only after identifying the cause.
+
+Retest both valid requests and unauthorized access attempts.
+
+The main requirement was that fixing a functional API error must not weaken document-level security.
+
+6. Example Debugging and Correction
+
+The following example illustrates how a frontend request might supply a required project identifier:
+
+const response = await fetch(
+  `${API_BASE_URL}/api/documents?projectId=${encodeURIComponent(projectId)}`,
+  {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  }
+);
+
+if (!response.ok) {
+  throw new Error(
+    `Document request failed: ${response.status}`
+  );
+}
+
+This example is appropriate only if the actual backend API requires projectId as a query parameter.
+
+The backend must still validate the project and authorize the authenticated user before returning documents.
+
+A simplified authorization-aware service flow could be:
+
+public List<DocumentDto> getProjectDocuments(
+        Long projectId,
+        User currentUser) {
+
+    projectSecurity.requireManagerAccess(
+        currentUser,
+        projectId);
+
+    return documentRepository
+        .findByProjectId(projectId)
+        .stream()
+        .map(documentMapper::toDto)
+        .toList();
+}
+
+T
 
 
