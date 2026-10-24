@@ -1682,5 +1682,216 @@ Cross-project access attempt is rejected
 
 Denied event recorded in audit trail
 
+Entry 08 — Next.js Security Warning and Dependency Review
+
+Date: 24/10/2026
+Role: Developer / Security Reviewer
+Category: Security — Dependency Management and Deployment
+Technology: Next.js, React, npm, Vercel, GitHub
+
+1. Development Context
+
+While preparing TrustVault for deployment, I encountered a security warning related to the Next.js version used by the frontend.
+
+TrustVault uses Next.js for the user interface and Java Spring Boot for backend authentication, document authorization, and audit logging.
+
+The warning raised an important concern: even when application-level authorization is implemented carefully, outdated framework dependencies can introduce additional security risks.
+
+I wanted to investigate the warning without blindly upgrading packages or introducing breaking changes before the project submission deadline.
+
+My objective was to identify the installed Next.js version, understand the reported vulnerability, determine whether a patched release was available, and verify that the application still worked after any necessary update.
+
+2. My Prompt to AI
+
+Act as a senior Next.js security engineer and help me investigate a security warning in my TrustVault frontend deployment.
+
+My project uses:
+
+Next.js and React for the frontend.
+
+Java Spring Boot and Spring Security for the backend.
+
+PostgreSQL for application data.
+
+Vercel for frontend deployment.
+
+Render for backend deployment.
+
+I received a warning indicating that the installed Next.js version might be insecure or affected by a known vulnerability.
+
+My requirements:
+
+Inspect package.json and the package lockfile to identify the installed Next.js and React versions.
+
+Determine which advisory or vulnerability applies to the installed version.
+
+Check whether the affected feature is used in my application.
+
+Identify the smallest compatible patched version.
+
+Explain the risk before changing dependencies.
+
+Avoid unnecessary major-version upgrades.
+
+Preserve the existing Admin, Manager, and Workshop Member dashboards.
+
+Preserve frontend communication with the Spring Boot API.
+
+Check for dependency conflicts and breaking changes.
+
+Verify that the production build succeeds after any upgrade.
+
+Security constraints:
+
+Do not disable security checks simply to make deployment succeed.
+
+Do not suppress the warning without understanding its cause.
+
+Do not use npm audit fix --force without reviewing the proposed dependency changes.
+
+Do not expose API secrets or JWT values in frontend environment variables.
+
+Do not assume that a successful build proves the vulnerability has been fixed.
+
+Preserve backend authorization and audit logging.
+
+Explain the recommended fix, the exact files that need modification, and the verification commands.
+
+3. What AI Produced
+
+The intended AI-assisted approach was to inspect the frontend dependency versions and compare them against the relevant security advisory.
+
+Rather than immediately upgrading every package, the proposed process focused on selecting an appropriate patched version and reviewing compatibility.
+
+The suggested verification steps included checking the dependency tree, running a production build, and testing the main application workflows after deployment.
+
+This is a retrospective summary of the intended investigation. The original AI response, affected version, advisory, and final changes must be confirmed before submission.
+
+4. What Went Wrong
+
+The warning indicated a potential dependency-security issue during the deployment process.
+
+However, a warning alone does not establish that the deployed application was exploitable. The actual risk depends on the installed version, the specific advisory, and the application's configuration.
+
+One possible mistake would be to ignore the warning because the frontend still builds successfully.
+
+Another mistake would be to run an unrestricted dependency upgrade that changes unrelated packages and breaks existing functionality.
+
+For example:
+
+npm audit fix --force
+
+This command can introduce major-version changes, so it should not be used blindly as a security fix.
+
+The exact Next.js vulnerability and affected package version have not been verified in this journal entry.
+
+5. My Correction and Refined Instructions
+
+I refined the investigation process to prioritize evidence and compatibility.
+
+The intended steps were:
+
+Confirm the installed Next.js version from the project files.
+
+Identify the official security advisory associated with the warning.
+
+Check whether the installed version falls within the affected range.
+
+Determine whether the application uses the vulnerable feature.
+
+Select a patched version compatible with the existing application.
+
+Update the dependency and lockfile together.
+
+Run the production build and review errors.
+
+Test login and role-based dashboard navigation.
+
+Test frontend API communication with the Spring Boot backend.
+
+Confirm that the deployed build uses the corrected dependency version.
+
+I also emphasized that framework updates do not replace application-level security controls such as document permissions, project isolation, and backend audit logging.
+
+6. Example Investigation Commands
+
+The following commands illustrate a safe dependency-review workflow. They are not proof that these exact commands were executed during development.
+
+npm ls next react react-dom
+
+This command displays the installed versions of Next.js and related React packages.
+
+npm audit
+
+This command checks installed dependencies against known vulnerability advisories available to npm.
+
+npm run build
+
+This command verifies whether the application can produce a production build.
+
+After confirming an appropriate patched version, a targeted update may be performed:
+
+npm install next@<verified-patched-version>
+
+The placeholder must be replaced with a version verified against the relevant advisory and compatibility requirements.
+
+After updating, the dependency tree, lockfile, build output, and deployment should be reviewed again.
+
+7. Security Verification
+
+I defined the following verification scenarios:
+
+Verification scenario
+
+Expected result
+
+Inspect installed Next.js version
+
+Exact version identified
+
+Review relevant security advisory
+
+Affected versions understood
+
+Compare installed version with advisory
+
+Exposure assessed
+
+Apply an appropriate patched version
+
+Dependency updated
+
+Inspect lockfile
+
+Updated version recorded
+
+Run production build
+
+Build completes successfully
+
+Open Admin dashboard
+
+Existing functionality preserved
+
+Open Manager dashboard
+
+Existing functionality preserved
+
+Open Workshop Member dashboard
+
+Existing functionality preserved
+
+Test frontend-to-backend API calls
+
+Requests function as intended
+
+Recheck vulnerability warning
+
+Relevant warning resolved if the patch applies
+
+Review deployment output
+
+Correct build deployed
+
 
 
