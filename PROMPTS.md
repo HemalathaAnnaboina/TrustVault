@@ -2085,5 +2085,242 @@ public List<DocumentDto> getProjectDocuments(
 }
 
 T
+Entry 10 — React Duplicate Keys and Pending Access Request Count Mismatch
+
+Date: 24/10/2026
+Role: Developer / Manager
+Category: Frontend Debugging — Data Consistency and UI Reliability
+Technology: Next.js, React, TypeScript, Java Spring Boot, REST APIs, PostgreSQL
+
+1. Development Context
+
+During the development and testing of TrustVault's Manager dashboard, I encountered two frontend issues affecting document management and access-request visibility.
+
+The first issue was a React warning about duplicate keys while rendering document records. The warning referenced the filename Large_Shopping_Dress_Data.xlsx in the Manager dashboard.
+
+The second issue involved the Pending Requests section. The dashboard displayed a notification count of one pending request, but when I opened the Pending Requests page, the corresponding request was not visible.
+
+These issues were important because TrustVault managers depend on accurate document lists and access-request notifications to manage confidential document permissions.
+
+My objective was to identify the causes of both problems and ensure that the frontend displayed consistent, correctly scoped data without weakening backend authorization.
+
+2. My Prompt to AI
+
+Act as a senior React, Next.js, TypeScript, and Spring Boot debugging engineer. Investigate two issues in my TrustVault Manager dashboard.
+
+Issue 1 — React Duplicate Key Warning
+
+The browser console displays a React warning about duplicate keys.
+
+The warning mentions:
+
+Large_Shopping_Dress_Data.xlsx
+
+The relevant component is ManagerDashboard.tsx.
+
+I suspect that document filenames may be used as React list keys.
+
+However, different uploaded documents can legitimately have the same filename.
+
+Expected behavior:
+
+Each rendered document row must have a stable, unique React key.
+
+Documents with identical filenames must remain separate records.
+
+The application must not delete or merge documents merely to remove the warning.
+
+Sorting, filtering, and refreshing should not cause incorrect row reuse.
+
+Issue 2 — Pending Requests Count Mismatch
+
+The Manager dashboard displays one pending access request in its notification count.
+
+However, when I navigate to the Pending Requests page, the list appears empty.
+
+Expected behavior:
+
+The notification count must match the number of pending requests visible to the authenticated Manager under the same filters.
+
+Requests belonging to other Managers or projects must not appear.
+
+Approved, rejected, expired, or cancelled requests must not be counted as pending unless explicitly required by the product rules.
+
+The page must distinguish between an empty result, a loading state, and an API error.
+
+The count must refresh after a Manager approves or rejects a request.
+
+Investigation instructions:
+
+Inspect ManagerDashboard.tsx and identify how document rows are rendered.
+
+Check whether filenames, array indexes, or other non-unique values are used as React keys.
+
+Identify a stable unique identifier from the document API response.
+
+Inspect the Pending Requests badge and list components.
+
+Trace the API calls used to calculate the pending count and retrieve pending requests.
+
+Compare the authenticated Manager scope, project filters, request statuses, and pagination rules used by both calls.
+
+Check whether the count is stale, cached, or calculated from a different dataset.
+
+Inspect loading, error, and empty-state handling.
+
+Explain the confirmed root cause of each issue before modifying code.
+
+Apply minimal fixes and add regression tests.
+
+Security constraints:
+
+Do not remove backend authorization checks.
+
+Do not return requests belonging to another Manager just to make the count match.
+
+Do not expose unauthorized documents or access requests.
+
+Do not use random keys that change on every render.
+
+Do not silently hide API errors by displaying an empty list.
+
+Preserve project isolation and document-level permissions.
+
+Ensure approval and rejection actions remain restricted to authorized Managers.
+
+Explain the corrected implementation and how to verify both issues.
+
+3. What AI Produced
+
+The proposed AI-assisted investigation separated the two issues into document-list rendering and access-request data consistency.
+
+For the duplicate-key warning, the intended approach was to identify a stable document identifier rather than relying on the filename.
+
+For the pending-request mismatch, the proposed approach was to compare the badge count and list API responses, including their filters, request statuses, and Manager authorization scope.
+
+The investigation also emphasized that the frontend should distinguish a genuine empty list from a failed API request.
+
+This is a retrospective summary of the intended AI-assisted approach. The original AI response and final code changes should be checked before submission.
+
+4. What Went Wrong
+
+Problem A — Duplicate React keys
+
+The browser reported a duplicate-key warning associated with:
+
+Large_Shopping_Dress_Data.xlsx
+
+A possible cause is using the document filename as the React key:
+
+{documents.map((document) => (
+  <DocumentRow
+    key={document.fileName}
+    document={document}
+  />
+))}
+
+This approach is unsafe because multiple documents can have the same filename.
+
+React uses keys to identify elements between renders. Duplicate keys can cause unexpected rendering behavior.
+
+Problem B — Pending request count mismatch
+
+The Manager dashboard showed one pending request, but the Pending Requests page did not display the corresponding record.
+
+Possible causes included:
+
+The badge and list using different status filters.
+
+The badge using stale data.
+
+Different project or Manager filters.
+
+Pagination or response-format inconsistencies.
+
+The list API failing while the interface displayed an empty state.
+
+The exact cause requires comparison of the actual frontend requests and backend responses.
+
+Important: The React snippet and possible causes are illustrative. The warning and count mismatch were observed, but the precise code-level causes are not confirmed in this entry.
+
+5. My Correction and Refined Instructions
+
+I refined the debugging requirements to prioritize stable document identity and consistent request filtering.
+
+For the document list, I required the frontend to use a stable unique document ID as the React key.
+
+I also specified that duplicate filenames should remain valid because two different projects or uploads may contain files with the same name.
+
+For Pending Requests, I required the notification badge and the request list to use consistent definitions of the PENDING state.
+
+The intended correction process was:
+
+Identify a stable unique key for each document.
+
+Preserve documents with identical filenames.
+
+Inspect the Manager's pending-request count endpoint.
+
+Inspect the Pending Requests list endpoint.
+
+Compare request statuses and project-scoping rules.
+
+Confirm that the authenticated Manager sees only authorized requests.
+
+Refresh the count and list after approval or rejection.
+
+Display loading, empty, and error states separately.
+
+Prevent stale cached responses from showing incorrect counts.
+
+Add regression tests for duplicate filenames and pending-request synchronization.
+
+I emphasized that fixing the count mismatch must not expose requests belonging to other Managers.
+
+6. Example Debugging and Correction
+
+A. Stable React keys
+
+The following TypeScript example demonstrates a safer rendering approach:
+
+{documents.map((document) => (
+  <DocumentRow
+    key={document.id}
+    document={document}
+  />
+))}
+
+This assumes document.id is a unique and stable identifier in the API response.
+
+If the backend uses a different field, the frontend should use that verified identifier instead.
+
+B. Consistent pending-request filtering
+
+The following example illustrates how a frontend can derive a pending count from the same authorized dataset used for the visible list:
+
+const pendingRequests = requests.filter(
+  (request) => request.status === "PENDING"
+);
+
+const pendingCount = pendingRequests.length;
+
+This approach is appropriate only when requests contains the complete authorized dataset rather than a single paginated page.
+
+If the backend uses server-side pagination, the count should come from an authorized total-count query using equivalent filters.
+
+C. Refreshing after approval or rejection
+
+An illustrative workflow is:
+
+async function handleApprove(requestId: number) {
+  await approveRequest(requestId);
+
+  await Promise.all([
+    refreshPendingRequests(),
+    refreshPendingCount(),
+  ]);
+}
+
+
 
 
