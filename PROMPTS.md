@@ -397,5 +397,226 @@ Denied
 
 These are expected outcomes; actual test results must be confirmed from the application or test reports.
 
+Entry 03 — Suspended Workshop Member Access Control
+
+Date: 20/10/2026
+Role: Manager / Workshop Member
+Category: Security — Project Suspension and Authorization
+Technology: Java, Spring Boot, Spring Security, PostgreSQL, React
+
+1. Development Context
+
+While testing TrustVault's Manager and Workshop Member dashboards, I encountered an issue involving project suspension.
+
+In TrustVault, managers can add workshop members to projects and suspend their project membership when they should no longer have access.
+
+I tested this functionality using a workshop member named Sita.
+
+After the manager suspended Sita from a project, I observed that project documents were still visible on her Workshop Member dashboard.
+
+This was a serious concern because suspension should immediately prevent a member from accessing confidential documents belonging to that project.
+
+My objective was to ensure that project suspension was enforced in the backend, not merely reflected as a status in the manager's dashboard.
+
+2. My Prompt to AI
+
+Act as a senior Java Spring Boot security engineer and perform a focused security investigation into project membership suspension in my TrustVault application.
+
+Actual issue I encountered:
+
+I have a Manager dashboard and a Workshop Member dashboard.
+
+A manager created Project Alpha and added Sita as a workshop member. Sita could initially see the project's documents because she was an active member.
+
+The manager then suspended Sita from Project Alpha.
+
+However, after suspension, Sita could still see documents associated with that project on her Workshop dashboard.
+
+This is a security problem. Suspended members must immediately lose access to that project's documents, even if they previously had READ or EDIT permissions.
+
+Expected behavior:
+
+An active workshop member can access only the documents they are authorized to use.
+
+A suspended workshop member cannot list, preview, download, edit, or search documents from the suspended project.
+
+Existing document permissions must not override suspended project membership.
+
+A valid JWT must not allow a suspended member to bypass authorization.
+
+Direct API requests using document IDs must also be denied.
+
+Suspension from Project Alpha must not automatically revoke access to an unrelated Project Beta where the member remains active and authorized.
+
+The manager should still be able to view and manage the project.
+
+Unauthorized access attempts should be recorded in the audit trail.
+
+Investigation instructions:
+
+Inspect the project membership entity and suspension status.
+
+Trace how membership status is checked in document controllers and services.
+
+Check document listing, metadata, preview, download, search, and edit endpoints.
+
+Identify whether any endpoint checks only the user's role or document permission without verifying active project membership.
+
+Inspect whether the Workshop dashboard displays stale or unauthorized documents.
+
+Explain the root cause before modifying code.
+
+Constraints:
+
+Fix the issue in Spring Boot authorization logic.
+
+Do not rely only on hiding documents in React.
+
+Do not delete document records or permanently remove permissions just to enforce suspension.
+
+Preserve Admin and Manager functionality.
+
+Do not introduce project-level passwords.
+
+Enforce isolation between different projects and clients.
+
+Add regression tests for suspended membership and direct API access.
+
+Make the smallest secure changes necessary and explain which endpoints and services were modified.
+
+3. What AI Produced
+
+The AI-assisted investigation focused on verifying project membership status before allowing document operations.
+
+The intended correction was to ensure that a workshop member's previously granted document permission would not be sufficient when their project membership was suspended.
+
+The frontend also needed to reflect the updated access state rather than continuing to display documents that were no longer authorized.
+
+I continued working on the issue until the suspension behavior was corrected.
+
+The exact files modified and original AI response should be confirmed from the repository history before submission.
+
+4. What Went Wrong
+
+The observed problem was that Sita continued seeing project documents after being suspended.
+
+A possible underlying authorization mistake is checking only whether a document permission exists:
+
+boolean allowed =
+    permissionService.hasReadPermission(
+        userId, documentId);
+
+Such a check may incorrectly allow access when the user still has a document permission but no longer has active project membership.
+
+A separate frontend issue can occur if previously loaded documents remain visible after membership status changes.
+
+However, removing documents from the frontend alone would not prevent direct API access.
+
+Important: The code above illustrates a possible failure pattern. It is not a confirmed excerpt or proven root cause from the repository.
+
+5. My Correction and Refined Instructions
+
+I emphasized that suspension must override document-level permissions for the affected project.
+
+I required the authorization flow to:
+
+Identify the authenticated user using the verified security context.
+
+Load the requested document and identify its project.
+
+Check whether the user's account is active.
+
+Verify that the user has an active membership in that specific project.
+
+Reject the operation if the membership is suspended, even when READ or EDIT permission exists.
+
+Validate the document-specific permission only after the membership check.
+
+Apply these checks to document listing, preview, download, search, and editing.
+
+Record denied attempts without exposing confidential document content.
+
+Refresh or invalidate frontend data after a membership change.
+
+Preserve access to unrelated projects where the user remains authorized.
+
+I also requested regression tests to ensure that the same suspension issue would not return after future changes.
+
+6. Example Security Logic
+
+The following simplified Java pseudocode demonstrates the intended membership validation. It is illustrative rather than a verified copy of the project's source code.
+
+public void requireActiveProjectMembership(
+        Long userId,
+        Long projectId) {
+
+    ProjectMembership membership =
+        membershipRepository
+            .findByUserIdAndProjectId(
+                userId, projectId)
+            .orElseThrow(() ->
+                new AccessDeniedException(
+                    "Project access denied"));
+
+    if (membership.getStatus()
+            != MembershipStatus.ACTIVE) {
+
+        throw new AccessDeniedException(
+            "Project membership is not active");
+    }
+}
+
+This check must be combined with document-specific authorization, account status, and cross-project isolation. Legitimate Manager and Admin access must follow the application's defined security policy.
+
+7. Security Verification
+
+I defined the following regression scenarios:
+
+Test scenario
+
+Expected result
+
+Sita is an active member with READ permission
+
+Allowed to read the approved document
+
+Manager suspends Sita from Project Alpha
+
+Membership becomes suspended
+
+Sita opens Project Alpha document list
+
+Documents no longer returned
+
+Sita downloads a Project Alpha document by ID
+
+Denied
+
+Sita attempts to edit a Project Alpha document
+
+Denied
+
+Sita uses an existing JWT after suspension
+
+Denied for Project Alpha
+
+Sita has an old READ permission in Project Alpha
+
+Permission cannot bypass suspension
+
+Sita is still active in Project Beta
+
+Authorized Project Beta access remains available
+
+Manager views their own project
+
+Allowed
+
+Suspended Sita makes a denied request
+
+Denied attempt recorded in audit trail
+
+These are expected results. Actual automated test outcomes should be added only after checking test reports.
+
 
 
