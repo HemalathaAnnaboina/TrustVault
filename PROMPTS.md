@@ -620,3 +620,237 @@ These are expected results. Actual automated test outcomes should be added only 
 
 
 
+Entry 04 — Admin Account Deactivation and Login Blocking
+
+Date: 21/10/206
+Role: Admin / Manager / Workshop Member
+Category: Security — Authentication and Account Deactivation
+Technology: Java, Spring Boot, Spring Security, JWT, PostgreSQL
+
+1. Development Context
+
+While developing the Admin dashboard in TrustVault, I wanted administrators to manage Manager and Workshop Member accounts securely.
+
+The Admin should be able to create users, assign roles, and deactivate accounts when a person leaves the organization or should no longer use the platform.
+
+My main concern was that deactivating an account should do more than hide the user from the Admin dashboard.
+
+For example, if an Admin deactivates Sita's account, Sita must not be able to log in using her correct email and password. If she already has a valid JWT from an earlier login, that token should not allow her to continue accessing protected resources.
+
+This made me focus on enforcing account status during authentication and authorization.
+
+2. My Prompt to AI
+
+Act as a senior Java Spring Boot and Spring Security developer. Review the Admin account-management and authentication workflow in my TrustVault application.
+
+TrustVault has three roles: Admin, Manager, and Workshop Member.
+
+The Admin can create Manager and Workshop Member accounts, assign roles, and deactivate user accounts.
+
+Security scenario:
+
+Sita is an active Workshop Member who can log in and access documents for which she has permission.
+
+The Admin opens the user-management page and deactivates Sita's account.
+
+Now suppose Sita tries to log in again using her correct email and password.
+
+Expected behavior:
+
+The login must be rejected because the account is inactive.
+
+Correct credentials must not override account deactivation.
+
+The application must not issue a new JWT to a deactivated user.
+
+Existing JWTs must not provide continued access to protected APIs.
+
+Sita must not view, download, upload, edit, or search documents after deactivation.
+
+Deactivation must not delete Sita's historical audit records.
+
+Admin must still be able to review the account and its activity.
+
+Deactivating one account must not affect unrelated active accounts.
+
+Investigation instructions:
+
+Inspect the User entity and account-status field.
+
+Review the login controller, authentication service, and Spring Security configuration.
+
+Check whether account status is validated before issuing JWTs.
+
+Inspect the JWT authentication filter and determine whether existing tokens remain usable after account deactivation.
+
+Check whether protected services independently enforce active-account status.
+
+Review the Admin user-deactivation endpoint and its authorization rules.
+
+Explain any security gaps and their root causes before modifying the implementation.
+
+Constraints:
+
+Only authorized Admin users can deactivate accounts.
+
+Enforce account status in the Spring Boot backend.
+
+Do not rely on hiding the Login button or dashboard in React.
+
+Prevent users from deactivating or reactivating accounts through unauthorized API requests.
+
+Reject inactive users even when their password is correct.
+
+Ensure previously issued JWTs cannot bypass account deactivation.
+
+Preserve historical audit logs and document ownership records.
+
+Record account deactivation and denied access attempts in the audit trail.
+
+Preserve existing Manager and Workshop Member functionality.
+
+Add regression tests for login, JWT reuse, and Admin-only account management.
+
+Make the smallest secure changes necessary without rewriting unrelated application features.
+
+3. What AI Produced
+
+The proposed AI-assisted approach was to make account status part of the authentication and authorization process.
+
+This involved checking whether the account was active before allowing login and issuing a JWT.
+
+The approach also required protected requests to verify that the authenticated account remained active, rather than trusting the JWT's signature and expiration alone.
+
+Another recommendation was to restrict account-deactivation operations to the Admin role and preserve historical records for auditing.
+
+This is a draft summary of the intended approach. The original AI response and actual changes should be checked before submission.
+
+4. What Went Wrong
+
+The security risk was assuming that a valid email, password, or JWT automatically meant the user should still be allowed into the application.
+
+For example, authentication logic that only validates credentials could overlook the account's current status.
+
+Similarly, a JWT may remain cryptographically valid after the Admin deactivates the user.
+
+An unsafe authorization pattern could look like:
+
+if (jwtService.isTokenValid(token)) {
+    allowRequest();
+}
+
+This checks token validity but does not independently confirm whether the account has been deactivated.
+
+If the application does not recheck account status, an inactive user could potentially continue using an existing session or token.
+
+Important: This is an illustrative unsafe pattern, not a confirmed excerpt from my repository or proof that this vulnerability existed.
+
+5. My Correction and Refined Instructions
+
+I refined the security requirements to ensure account deactivation takes effect across the application.
+
+The expected authorization flow was:
+
+Allow only authenticated Admin users to deactivate accounts.
+
+Store the updated account status in the database.
+
+Reject login attempts when the account is inactive, even with correct credentials.
+
+Avoid issuing new JWTs to inactive accounts.
+
+Recheck current account status when validating authenticated requests.
+
+Reject previously issued JWTs when the associated account is inactive.
+
+Block inactive accounts from all protected document and project operations.
+
+Preserve document ownership information and historical audit records.
+
+Record deactivation actions and subsequent denied access attempts.
+
+Verify that unrelated active accounts continue working normally.
+
+I also emphasized that frontend redirects or logout messages are useful for the user experience but cannot replace backend authorization checks.
+
+6. Example Security Logic
+
+The following simplified Java pseudocode illustrates the intended account-status validation. It is not a verified copy of the project's implementation.
+
+public void requireActiveAccount(User user) {
+
+    if (user == null || !user.isActive()) {
+        throw new AccessDeniedException(
+            "Account is inactive or unavailable");
+    }
+}
+
+For authenticated API requests, the application should obtain the current user record from a trusted source and validate the active status before allowing protected operations.
+
+User user = userRepository.findById(userId)
+    .orElseThrow(() ->
+        new AccessDeniedException(
+            "Account unavailable"));
+
+requireActiveAccount(user);
+
+These checks are illustrative. In the actual application, JWT signature and expiration validation, secure identity lookup, account-status checks, and authorization rules must work together. The login flow must also reject inactive users before a new token is issued.
+
+7. Security Verification
+
+I defined the following scenarios to verify account deactivation:
+
+Test scenario
+
+Expected result
+
+Active Sita logs in with correct credentials
+
+Login allowed
+
+Admin deactivates Sita
+
+Account becomes inactive
+
+Sita logs in with correct credentials after deactivation
+
+Login denied
+
+Sita logs in with an incorrect password
+
+Login denied
+
+Sita uses an existing JWT after deactivation
+
+Protected API access denied
+
+Sita attempts to download a previously authorized document
+
+Denied
+
+Sita attempts to view project documents
+
+Denied
+
+Workshop Member attempts to deactivate another user
+
+Denied
+
+Manager attempts to call an Admin-only deactivation API
+
+Denied
+
+Admin reviews Sita's historical audit records
+
+Allowed
+
+Another active Workshop Member logs in
+
+Allowed
+
+Unauthorized user attempts account reactivation
+
+Denied
+
+
+
