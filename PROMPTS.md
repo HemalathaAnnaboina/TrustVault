@@ -1127,3 +1127,560 @@ An account is deactivated
 
 Historical audit events remain available to authorized reviewers
 
+
+
+
+Entry 06 — Role-Based Access Control for Admin, Manager and Workshop Member
+
+Date: 22/10/2026
+Role: Admin / Manager / Workshop Member
+Category: Security — Role-Based Access Control (RBAC)
+Technology: Java, Spring Boot, Spring Security, JWT, PostgreSQL, Next.js
+
+1. Development Context
+
+While building TrustVault, I needed to separate the responsibilities of administrators, managers, and workshop members.
+
+Initially, I focused on designing separate dashboards for each role. However, I realized that displaying different pages does not automatically secure the underlying backend APIs.
+
+For example, a Workshop Member should not be able to create Manager accounts simply by calling an Admin API directly. Similarly, a Manager should not be able to deactivate another user's account, and a Workshop Member should not be able to approve their own document-access request.
+
+My goal was to enforce role-based authorization consistently across the backend while preserving document-level permissions and project-specific access rules.
+
+2. My Prompt to AI
+
+Act as a senior Java Spring Boot and Spring Security engineer. Review and strengthen the role-based access control implementation in my TrustVault application.
+
+TrustVault has three roles:
+
+ADMIN
+
+Create Manager and Workshop Member accounts.
+
+Assign user roles.
+
+Activate or deactivate user accounts.
+
+View system-wide audit logs and security events.
+
+Manage administrative account settings.
+
+MANAGER
+
+Create and manage their own projects.
+
+Upload and organize project documents.
+
+Add and suspend Workshop Members within their projects.
+
+Review and approve or reject document-access requests.
+
+Grant, revoke, and expire document-specific READ or EDIT permissions.
+
+View audit activity associated with projects they are authorized to manage.
+
+WORKSHOP MEMBER
+
+View projects where they have active membership.
+
+Request access to individual documents.
+
+View or download documents with valid READ permission.
+
+Edit documents only when EDIT permission is granted.
+
+Update their own profile and password.
+
+Security scenario:
+
+Sita logs in as a Workshop Member and receives a valid JWT.
+
+She cannot see Admin functionality in her dashboard.
+
+However, suppose she manually sends an API request to create a Manager account or approve her own document-access request.
+
+The backend must reject these operations even though she is authenticated.
+
+Similarly, Manager A must not be able to manage Manager B's projects simply by changing a project ID in an API request.
+
+Investigation instructions:
+
+Inspect the existing Spring Security configuration and JWT authentication filter.
+
+Review how ADMIN, MANAGER, and WORKSHOP MEMBER roles are stored and mapped to Spring Security authorities.
+
+Inspect Admin, Manager, Project, Document, Permission, and Access Request controllers.
+
+Identify endpoints that require explicit role restrictions.
+
+Check whether sensitive service methods can be called without verifying the authenticated user's role and resource ownership.
+
+Review the frontend route protection and role-specific navigation.
+
+Identify any privilege-escalation or cross-role authorization risks.
+
+Explain the root cause of each confirmed issue before modifying the code.
+
+Constraints:
+
+Enforce authorization in the Spring Boot backend.
+
+Do not depend only on hiding buttons or pages in Next.js.
+
+Use a deny-by-default policy for sensitive endpoints.
+
+Ensure Workshop Members cannot invoke Admin or Manager-only operations.
+
+Ensure Managers cannot perform Admin-only account management.
+
+Ensure Managers cannot modify another Manager's projects.
+
+Validate document-specific permissions independently of user roles.
+
+Preserve project suspension, account deactivation, and permission-expiration checks.
+
+Obtain the current user's identity from the verified authentication context.
+
+Record unauthorized access attempts in the audit trail.
+
+Add negative security tests for role escalation and direct API requests.
+
+Apply the smallest secure changes necessary without breaking legitimate workflows.
+
+3. What AI Produced
+
+The proposed approach was to apply role-based restrictions at the Spring Security and controller/service levels.
+
+The AI-assisted design distinguished between endpoint-level role checks and resource-specific authorization.
+
+For example, only Admin users should reach account-management operations, while Manager users should reach project-management operations only for projects they are authorized to manage.
+
+The approach also recommended protecting the backend independently of frontend navigation and validating JWT roles against the application's current authorization rules.
+
+This is a draft summary of the intended AI-assisted approach. Confirm the original response and actual implementation before submission.
+
+4. What Went Wrong
+
+The main security concern was relying on frontend dashboard separation as proof that the application was secure.
+
+A Workshop Member might not see an Admin button, but the associated API could still be reachable if the backend lacked proper authorization.
+
+For example, an unsafe endpoint could look like:
+
+@PostMapping("/api/admin/users")
+public User createUser(@RequestBody UserRequest request) {
+    return userService.createUser(request);
+}
+
+If no other security layer restricts this endpoint, an authenticated non-Admin user might be able to invoke it directly.
+
+Another concern was checking only the MANAGER role without confirming that the Manager actually controlled the requested project.
+
+Important: This is an illustrative unsafe pattern, not a confirmed excerpt from the TrustVault repository.
+
+5. My Correction and Refined Instructions
+
+I refined the authorization requirements to ensure that each role could perform only its intended operations.
+
+The expected security flow was:
+
+Authenticate the user using a verified JWT and current account information.
+
+Confirm that the account is active.
+
+Check whether the user has the role required for the requested operation.
+
+For Manager operations, verify authority over the specific project.
+
+For Workshop Member document operations, verify active project membership.
+
+Check document-specific READ or EDIT permission before returning protected content.
+
+Reject access requests that violate role or resource-ownership restrictions.
+
+Ensure Workshop Members cannot approve their own requests.
+
+Prevent unauthorized role assignment or account deactivation.
+
+Record denied attempts without exposing confidential data.
+
+I also emphasized that a user having the MANAGER role does not automatically give them permission to manage every project.
+
+6. Example Security Logic
+
+The following Java code illustrates the intended role restrictions. It is an example, not a verified excerpt from the repository.
+
+@PreAuthorize("hasRole('ADMIN')")
+@PostMapping("/api/admin/users")
+public ResponseEntity<?> createUser(
+        @RequestBody UserRequest request) {
+
+    return ResponseEntity.ok(
+        userService.createUser(request));
+}
+
+A Manager endpoint also requires project-specific authorization:
+
+@PreAuthorize("hasRole('MANAGER')")
+@PostMapping("/api/projects/{projectId}/members")
+public ResponseEntity<?> addMember(
+        @PathVariable Long projectId,
+        @RequestBody MemberRequest request) {
+
+    projectSecurity.requireManagerAccess(
+        projectId);
+
+    projectService.addMember(projectId, request);
+
+    return ResponseEntity.ok().build();
+}
+
+In the actual application, method security must be enabled, and authority names must match the role mapping used by Spring Security. Controller restrictions must also be supported by service-level checks where necessary.
+
+7. Security Verification
+
+I defined the following scenarios to verify role-based authorization:
+
+Test scenario
+
+Expected result
+
+Admin creates a Manager account
+
+Allowed
+
+Admin deactivates a Workshop Member account
+
+Allowed
+
+Manager creates a project
+
+Allowed
+
+Manager manages their own project members
+
+Allowed
+
+Manager tries to deactivate a user account
+
+Denied
+
+Manager attempts to modify another Manager's project
+
+Denied
+
+Workshop Member calls an Admin account-creation API
+
+Denied
+
+Workshop Member attempts to create a project
+
+Denied
+
+Workshop Member tries to approve their own access request
+
+Denied
+
+Workshop Member downloads a document with valid READ access
+
+Allowed
+
+Workshop Member attempts to edit with READ-only permission
+
+Denied
+
+Suspended Workshop Member accesses a project
+
+Denied
+
+Deactivated account uses an existing JWT
+
+Denied
+
+Unauthorized role-escalation attempt
+
+Denied and audited
+
+Entry 07 — Cross-Project Isolation and Direct URL Authorization
+
+Date: 23/10/2026
+Role: Manager / Workshop Member
+Category: Security — Project Isolation, Broken Access Control and IDOR Prevention
+Technology: Java, Spring Boot, Spring Security, PostgreSQL, JWT, Next.js
+
+1. Development Context
+
+While developing TrustVault, I wanted to ensure that documents belonging to one project could not be accessed by users from another project without explicit authorization.
+
+TrustVault allows Managers to create projects, add Workshop Members, upload confidential documents, and manage document-specific permissions.
+
+However, having separate projects in the database or showing different projects on each user's dashboard does not automatically guarantee isolation.
+
+For example, Manager A may create Project Alpha for Client A, while Manager B creates Project Beta for Client B.
+
+If Manager A changes a project ID in an API request, the backend must not return Project Beta's confidential information.
+
+Similarly, a Workshop Member who belongs to Project Alpha must not gain access to Project Beta's documents simply by guessing a document ID or using a copied download URL.
+
+My goal was to ensure that project and client isolation was enforced consistently in backend queries and authorization checks.
+
+2. My Prompt to AI
+
+Act as a senior Java Spring Boot application-security engineer and investigate cross-project authorization risks in my TrustVault platform.
+
+TrustVault is a security-focused document-management application with three roles: Admin, Manager, and Workshop Member.
+
+Managers create projects and upload documents. Workshop Members receive document-specific READ or EDIT permissions after approval.
+
+Security scenario:
+
+Manager A creates Project Alpha for Client A and uploads client-a-contract.pdf.
+
+Manager B creates Project Beta for Client B and uploads client-b-contract.pdf.
+
+Sita is a Workshop Member assigned only to Project Alpha.
+
+Suppose Sita discovers the document ID or direct download URL for client-b-contract.pdf.
+
+She must not be able to access the document, even if she is logged in and has a valid JWT.
+
+Similarly, Manager A must not be able to read, edit, delete, or manage Project Beta's documents or members by changing IDs in API requests.
+
+Expected behavior:
+
+Each Manager can manage only projects they are authorized to control.
+
+Workshop Members can view only projects where they have active membership.
+
+Document READ or EDIT access requires an active, valid permission for the specific document.
+
+A permission for Project Alpha must not provide access to Project Beta.
+
+Direct download, preview, metadata, search, edit, and delete requests must enforce authorization.
+
+Unauthorized project IDs and document IDs must not expose confidential data.
+
+Suspended memberships, revoked permissions, and expired grants must remain ineffective.
+
+Unauthorized access attempts should be recorded in the audit trail.
+
+Investigation instructions:
+
+Inspect project, document, membership, and permission entities and their database relationships.
+
+Review ProjectController, DocumentController, and their associated services.
+
+Identify endpoints that load resources by ID without checking the authenticated user's authority over the associated project.
+
+Inspect document search and listing queries for missing project restrictions.
+
+Verify that project IDs and document IDs are not trusted as proof of authorization.
+
+Review download, preview, edit, delete, and permission-management operations.
+
+Check whether Manager ownership and Workshop Member membership are enforced consistently.
+
+Explain any confirmed authorization gaps before modifying code.
+
+Constraints:
+
+Enforce project isolation in the Spring Boot backend.
+
+Do not rely on hiding projects or documents in Next.js.
+
+Use authenticated identity from the verified security context.
+
+Never accept a client-supplied user ID as proof of ownership.
+
+Apply deny-by-default authorization to sensitive resources.
+
+Verify account status, project authority or membership, and document-level permissions.
+
+Preserve legitimate Admin oversight without unintentionally granting broad document access.
+
+Do not introduce project-level passwords.
+
+Prevent cross-project access through guessed URLs, modified IDs, or direct API calls.
+
+Record denied access attempts in the audit trail.
+
+Add negative regression tests for cross-project data isolation.
+
+Implement only necessary security corrections and preserve existing project workflows.
+
+3. What AI Produced
+
+The proposed approach was to treat every project and document request as a resource-specific authorization decision.
+
+Instead of assuming that an authenticated user could access a requested project ID, the backend should identify the project's authorized Manager or verify the Workshop Member's active membership.
+
+For document operations, the backend should load the document, identify its parent project, and verify both project-level eligibility and document-specific permission.
+
+The proposed review also covered filtering document lists and search results so unauthorized resources were not returned.
+
+This is a retrospective summary of the intended AI-assisted approach. Verify the original AI output and actual code changes before submission.
+
+4. What Went Wrong
+
+The security concern was that database identifiers could potentially become a way to access another user's resources.
+
+For example, suppose an endpoint retrieves a document using only its ID:
+
+Document document = documentRepository
+    .findById(documentId)
+    .orElseThrow();
+
+Retrieving the document is not itself a security failure. The vulnerability occurs if the application returns its contents or performs an operation without checking whether the authenticated user is authorized to access it.
+
+A user might change a request such as:
+
+GET /api/documents/101/download
+
+to:
+
+GET /api/documents/102/download
+
+If document 102 belongs to another project, the backend must reject the request unless the user has valid authorization.
+
+Another concern was project listing and search APIs returning records outside the user's authorized scope.
+
+Important: These examples illustrate potential IDOR risks. They do not establish that these exact vulnerabilities existed in the repository.
+
+5. My Correction and Refined Instructions
+
+I refined the authorization requirements to ensure that every protected resource was checked against the authenticated user's identity.
+
+The intended security flow was:
+
+Authenticate the request and identify the current user.
+
+Verify that the account is active.
+
+Load the requested project or document using its identifier.
+
+Determine which project owns the requested document.
+
+Verify that a Manager is authorized to manage that project, or that a Workshop Member has active membership.
+
+For Workshop Member document operations, check the exact document's READ or EDIT permission.
+
+Reject expired, revoked, or insufficient permissions.
+
+Filter document lists and search results to authorized resources.
+
+Apply equivalent authorization checks to direct download, preview, edit, and delete operations.
+
+Record denied attempts without exposing confidential document metadata or contents.
+
+I emphasized that a valid JWT identifies an authenticated user but does not automatically authorize access to every project or document.
+
+6. Example Security Logic
+
+The following simplified Java pseudocode illustrates the intended project-isolation check. It is not a verified excerpt from TrustVault's source code.
+
+public void requireProjectAccess(
+        User currentUser,
+        Project project) {
+
+    if (currentUser == null
+            || !currentUser.isActive()) {
+        throw new AccessDeniedException(
+            "Access denied");
+    }
+
+    boolean authorizedManager =
+        projectSecurity.isAuthorizedManager(
+            currentUser.getId(),
+            project.getId());
+
+    boolean activeMember =
+        membershipService.hasActiveMembership(
+            currentUser.getId(),
+            project.getId());
+
+    if (!authorizedManager && !activeMember) {
+        throw new AccessDeniedException(
+            "Project access denied");
+    }
+}
+
+For document access, an additional document-specific check is required:
+
+Document document = documentRepository
+    .findById(documentId)
+    .orElseThrow(() ->
+        new ResourceNotFoundException(
+            "Document unavailable"));
+
+requireProjectAccess(
+    currentUser, document.getProject());
+
+documentSecurity.requirePermission(
+    currentUser, document, PermissionType.READ);
+
+The real implementation must distinguish Manager and Workshop Member privileges correctly. Active project membership alone must never be treated as sufficient permission to read every document.
+
+For applications with multiple clients or tenants, authorization must also verify the relevant client or tenant boundary, not only the project ID.
+
+7. Security Verification
+
+I defined the following negative and positive test scenarios:
+
+Test scenario
+
+Expected result
+
+Manager A opens Project Alpha
+
+Allowed
+
+Manager A attempts to manage Project Beta
+
+Denied
+
+Manager A modifies Project Beta's members through a direct API
+
+Denied
+
+Sita lists projects where she has active membership
+
+Authorized projects only
+
+Sita requests Project Beta's document by guessed ID
+
+Denied
+
+Sita attempts to download a document without READ permission
+
+Denied
+
+Sita downloads an approved Project Alpha document
+
+Allowed
+
+Sita attempts to edit with READ-only permission
+
+Denied
+
+Sita uses a revoked document permission
+
+Denied
+
+Sita accesses a project after suspension
+
+Denied
+
+Document search includes another client's records
+
+Unauthorized records excluded
+
+Unauthorized user attempts direct document deletion
+
+Denied
+
+Cross-project access attempt is rejected
+
+Denied event recorded in audit trail
+
+
+
