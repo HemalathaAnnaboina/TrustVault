@@ -852,5 +852,278 @@ Unauthorized user attempts account reactivation
 
 Denied
 
+Entry 05 — Secure Audit Logs and Denied Access Attempts
 
+Date: 21/10/2026
+Role: Admin / Manager / Workshop Member
+Category: Security — Audit Logging, Accountability and Access Control
+Technology: Java, Spring Boot, Spring Security, PostgreSQL
+
+1. Development Context
+
+While developing TrustVault, I focused on two important security problems: preventing unauthorized document access and maintaining a reliable record of document activity.
+
+Even if a system successfully blocks unauthorized access, administrators still need to know who attempted the operation, which document was involved, and when the attempt occurred.
+
+For example, if Sita tries to download salary.pdf without permission, the backend should deny the request. However, simply returning an error is not enough for an administrator investigating suspicious activity.
+
+I wanted TrustVault to record successful and denied document operations, including uploads, downloads, edits, deletions, and permission changes.
+
+Another concern was audit-log visibility. Admin users should be able to investigate system-wide activity, while Managers should see only activity related to projects they are authorized to manage. Workshop Members should not be able to access confidential system audit logs.
+
+2. My Prompt to AI
+
+Act as a senior Java Spring Boot security engineer and audit-logging specialist. Review the audit trail implementation in my TrustVault document-management application.
+
+TrustVault has three roles: Admin, Manager, and Workshop Member.
+
+Managers create projects, upload documents, manage permissions, and suspend project members. Workshop Members can access only documents for which they have valid permissions.
+
+I want the application to maintain a reliable audit trail for security investigations.
+
+Consider this scenario:
+
+Manager A uploads salary.pdf into Project Alpha and grants Sita READ permission.
+
+Sita downloads the document successfully.
+
+Later, Manager A revokes Sita's permission.
+
+Sita then tries to download the same document again using its API URL.
+
+Expected audit behavior:
+
+The original upload is recorded.
+
+The successful download is recorded as ALLOWED.
+
+The permission revocation is recorded with the responsible Manager.
+
+Sita's later unauthorized download attempt is recorded as DENIED.
+
+Each record identifies the actor, action, resource, timestamp, and outcome.
+
+Audit records must not expose passwords, JWTs, or confidential document contents.
+
+Audit-log access rules:
+
+Admin can review system-wide audit events.
+
+Manager can review events related only to projects they are authorized to manage.
+
+Workshop Members cannot access administrative audit-log endpoints.
+
+A Manager must not retrieve another Manager's private project audit logs by changing a project ID in the URL.
+
+Investigation instructions:
+
+Inspect the existing audit-log entity, repository, service, and controller.
+
+Check whether successful and denied document operations are recorded.
+
+Review upload, download, edit, delete, permission grant, revocation, and membership suspension flows.
+
+Inspect Spring Security restrictions on /api/audit-logs/** and other audit endpoints.
+
+Check whether the audit controller accepts user-controlled project IDs without verifying Manager ownership.
+
+Determine whether denied requests are still logged when the main operation fails or a transaction rolls back.
+
+Review how audit events are stored and whether unauthorized users can modify or delete them.
+
+Explain the root causes of any identified issues before changing the code.
+
+Constraints:
+
+Enforce audit-log access restrictions in the Spring Boot backend.
+
+Do not rely on hiding audit navigation in React.
+
+Record both ALLOWED and DENIED security-sensitive operations.
+
+Obtain actor identity from the verified security context, not from client-supplied fields.
+
+Use server-generated timestamps.
+
+Preserve historical audit events when accounts are deactivated or permissions are revoked.
+
+Prevent unauthorized modification or deletion of audit records.
+
+Do not expose confidential file contents or authentication secrets in logs.
+
+Preserve existing Admin and Manager functionality.
+
+Add security regression tests for cross-project audit access and denied-event recording.
+
+Make the smallest secure changes necessary and explain which controllers, services, and security rules require modification.
+
+3. What AI Produced
+
+The AI-assisted review focused on centralizing audit-event creation and applying backend authorization to audit-log retrieval.
+
+The proposed design recorded the authenticated actor, target resource, action, timestamp, and result for security-sensitive operations.
+
+It also distinguished between Admin access to system-wide logs and Manager access to project-scoped logs.
+
+Another important recommendation was to ensure denied attempts were captured even when the requested document operation was rejected.
+
+This is a draft summary of the intended AI-assisted approach. The exact original response and implemented changes should be verified before submission.
+
+4. What Went Wrong
+
+During the security review, an important concern involved audit-log endpoint authorization.
+
+The /api/audit-logs/** route lacked explicit authority restrictions in the reviewed Spring Security configuration, and the /my-activity route was reachable by Viewer users. The Workshop Member interface also exposed audit-log navigation.
+
+This created a risk of unauthorized users observing sensitive security information, including actions performed by other users and projects.
+
+Another possible issue was recording only successful operations while overlooking denied attempts.
+
+For example, if Sita attempted to download a document without permission, the request might be rejected correctly but leave no audit evidence if the denial was not logged.
+
+A simplified unsafe endpoint could look like:
+
+@GetMapping("/api/audit-logs")
+public List<AuditLog> getAuditLogs() {
+    return auditLogRepository.findAll();
+}
+
+Without appropriate backend authorization and project scoping, this pattern could expose system-wide audit events.
+
+Important: This code is an illustrative unsafe pattern, not a confirmed excerpt from the TrustVault repository.
+
+5. My Correction and Refined Instructions
+
+I focused on ensuring that audit logs were both complete and protected.
+
+I refined the instructions to require the following:
+
+Restrict system-wide audit-log retrieval to authorized Admin users.
+
+Allow Managers to retrieve only logs for projects they are authorized to manage.
+
+Prevent Workshop Members from accessing administrative audit endpoints.
+
+Validate project ownership or management authority in the backend before returning audit records.
+
+Record successful and denied document access attempts.
+
+Record permission grants, revocations, membership suspension, and account deactivation.
+
+Derive actor identity from the authenticated security context.
+
+Generate timestamps on the server and store a consistent ALLOWED or DENIED outcome.
+
+Prevent unauthorized modification or deletion of historical audit events.
+
+Ensure denied events remain recorded even when the protected operation fails.
+
+I also emphasized that audit logs themselves contain sensitive information and therefore require authorization controls similar to those protecting confidential documents.
+
+6. Example Security Logic
+
+The following simplified Java pseudocode demonstrates an intended audit-logging pattern. It is illustrative rather than a verified copy of the implementation.
+
+public void recordAuditEvent(
+        Long actorId,
+        Long documentId,
+        String action,
+        String result) {
+
+    AuditLog event = new AuditLog();
+
+    event.setActorId(actorId);
+    event.setDocumentId(documentId);
+    event.setAction(action);
+    event.setResult(result);
+    event.setTimestamp(Instant.now());
+
+    auditLogRepository.save(event);
+}
+
+An authorization denial might be handled as follows:
+
+try {
+    authorizationService.requireReadAccess(
+        currentUser, document);
+
+    auditService.recordAuditEvent(
+        currentUser.getId(),
+        document.getId(),
+        "DOWNLOAD",
+        "ALLOWED");
+
+} catch (AccessDeniedException ex) {
+
+    auditService.recordDeniedAttempt(
+        currentUser.getId(),
+        document.getId(),
+        "DOWNLOAD");
+
+    throw ex;
+}
+
+The real implementation must ensure that denied-event recording is not rolled back with the failed operation. It must also avoid recording an ALLOWED download before the actual operation succeeds.
+
+Audit writes should be protected from unauthorized changes, and the application should avoid leaking sensitive details through error messages.
+
+7. Security Verification
+
+I defined the following scenarios to verify the audit system:
+
+Test scenario
+
+Expected result
+
+Manager uploads a document
+
+Upload event recorded
+
+Sita downloads with READ permission
+
+ALLOWED download event recorded
+
+Sita downloads without permission
+
+Request denied and DENIED event recorded
+
+Manager revokes document permission
+
+Permission-change event recorded
+
+Sita downloads after revocation
+
+Denied attempt recorded
+
+Manager suspends Sita from a project
+
+Suspension event recorded
+
+Admin deactivates a user account
+
+Deactivation event recorded
+
+Admin requests system-wide audit logs
+
+Allowed
+
+Manager requests their own project audit logs
+
+Allowed
+
+Manager requests another project's private audit logs
+
+Denied
+
+Workshop Member calls /api/audit-logs/**
+
+Denied
+
+Unauthorized user attempts to modify audit records
+
+Denied
+
+An account is deactivated
+
+Historical audit events remain available to authorized reviewers
 
