@@ -1,0 +1,10 @@
+.git
+.gitignore
+frontend
+target
+node_modules
+.next
+.env
+.env.*
+*.bak
+data
