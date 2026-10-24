@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -23,6 +24,7 @@ public class RenewalRequestService {
     private final RenewalRequestRepository renewalRequestRepository;
     private final DocumentPermissionRepository permissionRepository;
     private final com.trustvault.repository.DocumentRepository documentRepository;
+    private final com.trustvault.repository.ProjectMemberRepository projectMemberRepository;
     private final DocumentAuthorizationService authorizationService;
     private final AuditService auditService;
     private final int maxExtensionDays;
@@ -31,6 +33,7 @@ public class RenewalRequestService {
             RenewalRequestRepository renewalRequestRepository,
             DocumentPermissionRepository permissionRepository,
             com.trustvault.repository.DocumentRepository documentRepository,
+            com.trustvault.repository.ProjectMemberRepository projectMemberRepository,
             DocumentAuthorizationService authorizationService,
             AuditService auditService,
             @org.springframework.beans.factory.annotation.Value("${trustvault.renewal.max-extension-days:365}") int maxExtensionDays
@@ -38,6 +41,7 @@ public class RenewalRequestService {
         this.renewalRequestRepository = renewalRequestRepository;
         this.permissionRepository = permissionRepository;
         this.documentRepository = documentRepository;
+        this.projectMemberRepository = projectMemberRepository;
         this.authorizationService = authorizationService;
         this.auditService = auditService;
         this.maxExtensionDays = maxExtensionDays;
@@ -71,8 +75,27 @@ public class RenewalRequestService {
         String clientIp = SecurityUtils.getClientIp(httpRequest);
         String userAgent = SecurityUtils.getUserAgent(httpRequest);
 
+        if (!requester.isActive()) {
+            auditService.logEvent(requester, AuditAction.INACTIVE_USER_ACCESS_ATTEMPT, "RENEWAL_REQUEST", null,
+                    AuditResult.DENIED, "Renewal request rejected: Account is inactive", clientIp, userAgent);
+            throw new ForbiddenException("Your account is deactivated. Contact your administrator.");
+        }
+
         if (!permission.getUser().getId().equals(requester.getId())) {
             throw new ForbiddenException("You can only request renewal for your own permissions");
+        }
+
+        if (permission.getDocument().getProject() != null && !requester.isAdmin()) {
+            Project project = permission.getDocument().getProject();
+            boolean isProjectOwner = project.getOwner() != null && project.getOwner().getId().equals(requester.getId());
+            if (!isProjectOwner) {
+                Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectAndUser(project, requester);
+                if (memberOpt.isPresent() && memberOpt.get().isSuspended()) {
+                    auditService.logEvent(requester, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                            AuditResult.DENIED, "Renewal request denied: Your project membership has been suspended for project " + project.getName(), clientIp, userAgent);
+                    throw new ForbiddenException("Access denied: Your project membership has been suspended");
+                }
+            }
         }
 
         if (permission.getStatus() == PermissionStatus.REVOKED) {

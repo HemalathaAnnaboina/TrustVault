@@ -63,6 +63,7 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/members")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<ProjectMemberDto> addMember(
             @PathVariable UUID id,
             @Valid @RequestBody AddMemberRequest request
@@ -78,6 +79,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}/members/{memberId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<ProjectMemberDto> updateMember(
             @PathVariable UUID id,
             @PathVariable UUID memberId,
@@ -88,6 +90,7 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/members/{memberId}/suspend")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<ProjectMemberDto> suspendMember(
             @PathVariable UUID id,
             @PathVariable UUID memberId,
@@ -98,6 +101,7 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/members/{memberId}/reactivate")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<ProjectMemberDto> reactivateMember(
             @PathVariable UUID id,
             @PathVariable UUID memberId
@@ -107,6 +111,7 @@ public class ProjectController {
     }
 
     @DeleteMapping("/{id}/members/{memberId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<Void> removeMember(@PathVariable UUID id, @PathVariable UUID memberId) {
         User currentUser = SecurityUtils.getCurrentUser();
         projectService.removeMember(id, memberId, currentUser);
@@ -114,6 +119,7 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/share")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<Void> shareDocument(
             @PathVariable UUID id,
             @Valid @RequestBody ShareDocumentRequest request,

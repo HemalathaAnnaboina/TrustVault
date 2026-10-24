@@ -76,11 +76,19 @@ public class AccessRequestService {
 
             if (project != null) {
                 boolean isProjectOwner = project.getOwner() != null && project.getOwner().getId().equals(requester.getId());
-                boolean isMember = isProjectOwner || projectMemberRepository.existsByProjectAndUser(project, requester);
-                if (!isProjectOwner && !isMember && requester.getRole() != Role.ROLE_ADMIN) {
-                    auditService.logEvent(requester, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
-                            AuditResult.DENIED, "User attempted to reference project without authorization", clientIp, userAgent);
-                    throw new ForbiddenException("Access denied: You are not authorized to reference this project");
+                if (!isProjectOwner && requester.getRole() != Role.ROLE_ADMIN) {
+                    Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectAndUser(project, requester);
+                    if (memberOpt.isEmpty()) {
+                        auditService.logEvent(requester, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                                AuditResult.DENIED, "User attempted to reference project without authorization", clientIp, userAgent);
+                        throw new ForbiddenException("Access denied: You are not authorized to reference this project");
+                    }
+                    ProjectMember member = memberOpt.get();
+                    if (member.isSuspended()) {
+                        auditService.logEvent(requester, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                                AuditResult.DENIED, "Access request denied: Your project membership has been suspended for project " + project.getName(), clientIp, userAgent);
+                        throw new ForbiddenException("Access denied: Your project membership has been suspended");
+                    }
                 }
             }
 
@@ -110,11 +118,19 @@ public class AccessRequestService {
 
             // User must be authorized to reference this project (owner, member, or admin)
             boolean isProjectOwner = project.getOwner() != null && project.getOwner().getId().equals(requester.getId());
-            boolean isMember = projectMemberRepository.existsByProjectAndUser(project, requester);
-            if (!isProjectOwner && !isMember && requester.getRole() != Role.ROLE_ADMIN) {
-                auditService.logEvent(requester, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
-                        AuditResult.DENIED, "User attempted to reference project without authorization", clientIp, userAgent);
-                throw new ForbiddenException("Access denied: You are not authorized to reference this project");
+            if (!isProjectOwner && requester.getRole() != Role.ROLE_ADMIN) {
+                Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectAndUser(project, requester);
+                if (memberOpt.isEmpty()) {
+                    auditService.logEvent(requester, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                            AuditResult.DENIED, "User attempted to reference project without authorization", clientIp, userAgent);
+                    throw new ForbiddenException("Access denied: You are not authorized to reference this project");
+                }
+                ProjectMember member = memberOpt.get();
+                if (member.isSuspended()) {
+                    auditService.logEvent(requester, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                            AuditResult.DENIED, "Access request denied: Your project membership has been suspended for project " + project.getName(), clientIp, userAgent);
+                    throw new ForbiddenException("Access denied: Your project membership has been suspended");
+                }
             }
 
             // Attempt safe resolution to an existing document in this project

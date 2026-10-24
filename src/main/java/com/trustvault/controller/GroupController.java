@@ -9,6 +9,7 @@ import com.trustvault.service.ProjectService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,6 +34,7 @@ public class GroupController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<GroupDto> createGroup(
             @Valid @RequestBody CreateGroupRequest request,
             HttpServletRequest httpRequest
@@ -54,6 +56,7 @@ public class GroupController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<GroupDto> updateGroup(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateGroupRequest request,
@@ -64,6 +67,7 @@ public class GroupController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<Void> deleteGroup(@PathVariable UUID id, HttpServletRequest httpRequest) {
         User currentUser = SecurityUtils.getCurrentUser();
         groupService.deleteGroup(id, currentUser, httpRequest);
@@ -71,6 +75,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/members")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<GroupDto> addMembers(
             @PathVariable UUID id,
             @RequestBody AddMembersRequest request,
@@ -81,6 +86,7 @@ public class GroupController {
     }
 
     @DeleteMapping("/{id}/members/{userId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<GroupDto> removeMember(
             @PathVariable UUID id,
             @PathVariable UUID userId,

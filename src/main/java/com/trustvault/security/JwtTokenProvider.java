@@ -25,6 +25,9 @@ public class JwtTokenProvider {
             @Value("${trustvault.jwt.secret}") String secret,
             @Value("${trustvault.jwt.expiration-ms:86400000}") long expirationMs
     ) {
+        if (secret == null || secret.trim().length() < 32) {
+            throw new IllegalStateException("JWT secret must be configured and at least 32 characters long (256 bits) for HMAC-SHA256");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }

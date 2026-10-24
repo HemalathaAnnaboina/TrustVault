@@ -43,6 +43,12 @@ public class GroupService {
         String clientIp = SecurityUtils.getClientIp(httpRequest);
         String userAgent = SecurityUtils.getUserAgent(httpRequest);
 
+        if (owner.getRole() != Role.ROLE_ADMIN && owner.getRole() != Role.ROLE_MANAGER && owner.getRole() != Role.ROLE_OWNER) {
+            auditService.logEvent(owner, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "GROUP", null,
+                    AuditResult.DENIED, "Non-manager user attempted to create group", clientIp, userAgent);
+            throw new ForbiddenException("Only administrators and managers can create groups");
+        }
+
         Optional<Group> existing = groupRepository.findByNameIgnoreCaseAndOwner(request.name().trim(), owner);
         if (existing.isPresent()) {
             throw new BadRequestException("A group with name '" + request.name().trim() + "' already exists");

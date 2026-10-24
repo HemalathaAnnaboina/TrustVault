@@ -122,12 +122,22 @@ public class AuditService {
                         if (d.getProject() != null) {
                             auditLog.setProjectId(d.getProject().getId());
                         }
+                        if (auditLog.getClientId() == null && d.getClient() != null) {
+                            auditLog.setClientId(d.getClient().getId());
+                        }
                     });
                 } catch (Exception ignored) {}
             } else if ("PROJECT".equalsIgnoreCase(resourceType) && resourceId != null) {
                 try {
                     UUID projId = UUID.fromString(resourceId);
                     auditLog.setProjectId(projId);
+                    if (auditLog.getClientId() == null) {
+                        projectRepository.findById(projId).ifPresent(p -> {
+                            if (p.getClient() != null) {
+                                auditLog.setClientId(p.getClient().getId());
+                            }
+                        });
+                    }
                 } catch (Exception ignored) {}
             }
 
@@ -213,7 +223,10 @@ public class AuditService {
 
     @Transactional(readOnly = true)
     public List<AuditLogDto> getDocumentLogs(String documentId, com.trustvault.model.User currentUser) {
-        if (currentUser != null && (currentUser.isManager() || currentUser.getRole() == com.trustvault.model.Role.ROLE_OWNER)) {
+        if (currentUser == null || (!currentUser.isAdmin() && !currentUser.isManager() && currentUser.getRole() != com.trustvault.model.Role.ROLE_OWNER)) {
+            throw new com.trustvault.exception.ForbiddenException("Access denied: Workshop members are not authorized to view document audit logs");
+        }
+        if (currentUser.isManager() || currentUser.getRole() == com.trustvault.model.Role.ROLE_OWNER) {
             try {
                 UUID docUuid = UUID.fromString(documentId);
                 com.trustvault.model.Document doc = documentRepository.findById(docUuid).orElse(null);
@@ -340,7 +353,9 @@ public class AuditService {
                 l.getIpAddress(),
                 l.getUserAgent(),
                 l.getPreviousHash(),
-                l.getCurrentHash()
+                l.getCurrentHash(),
+                l.getClientId(),
+                l.getProjectId()
         );
     }
 }

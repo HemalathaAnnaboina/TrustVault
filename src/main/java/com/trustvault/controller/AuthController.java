@@ -37,6 +37,28 @@ public class AuthController {
         return ResponseEntity.ok(authService.getCurrentProfile(currentUser));
     }
 
+    @GetMapping("/profile")
+    public ResponseEntity<UserProfileResponse> getProfile() {
+        return getMe();
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<UserProfileResponse> updateProfile(
+            @Valid @RequestBody UpdateProfileRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        User currentUser = SecurityUtils.getCurrentUser();
+        return ResponseEntity.ok(authService.updateProfile(currentUser, request, httpRequest));
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<UserProfileResponse> updateMe(
+            @Valid @RequestBody UpdateProfileRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return updateProfile(request, httpRequest);
+    }
+
     @PostMapping("/change-password")
     public ResponseEntity<java.util.Map<String, String>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,

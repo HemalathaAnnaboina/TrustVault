@@ -7,6 +7,7 @@ import com.trustvault.service.AccessRequestService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +33,7 @@ public class AccessRequestController {
     }
 
     @GetMapping("/owner")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<List<AccessRequestDto>> getRequestsForOwner() {
         User owner = SecurityUtils.getCurrentUser();
         return ResponseEntity.ok(accessRequestService.getRequestsForOwner(owner));
@@ -44,6 +46,7 @@ public class AccessRequestController {
     }
 
     @PostMapping("/{id}/review")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<AccessRequestDto> reviewRequest(
             @PathVariable UUID id,
             @RequestBody ReviewAccessRequest review,

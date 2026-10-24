@@ -169,6 +169,11 @@ public class UserService {
         }
 
         if (request.role() != null && request.role() != user.getRole()) {
+            if (user.getRole() == Role.ROLE_ADMIN && request.role() != Role.ROLE_ADMIN) {
+                if (userRepository.countByRoleAndActiveTrue(Role.ROLE_ADMIN) <= 1) {
+                    throw new BadRequestException("Cannot demote the only active administrator account");
+                }
+            }
             Role oldRole = user.getRole();
             user.setRole(request.role());
             auditService.logEvent(admin, AuditAction.USER_ROLE_CHANGED, "USER", user.getId().toString(),

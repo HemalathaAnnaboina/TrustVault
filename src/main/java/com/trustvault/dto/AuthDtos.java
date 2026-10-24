@@ -1,9 +1,11 @@
 package com.trustvault.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.trustvault.model.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.time.Instant;
 import java.util.UUID;
 
 public class AuthDtos {
@@ -47,11 +49,29 @@ public class AuthDtos {
             String email,
             String fullName,
             Role role,
-            boolean active
+            boolean active,
+            Instant createdAt,
+            Instant passwordLastChangedAt,
+            Instant lastLoginAt
+    ) {
+        public UserProfileResponse(UUID id, String email, String fullName, Role role, boolean active) {
+            this(id, email, fullName, role, active, null, null, null);
+        }
+
+        public UserProfileResponse(UUID id, String email, String fullName, Role role, boolean active, Instant createdAt) {
+            this(id, email, fullName, role, active, createdAt, null, null);
+        }
+    }
+
+    public record UpdateProfileRequest(
+            @NotBlank(message = "Full name is required")
+            @Size(min = 2, max = 100, message = "Full name must be between 2 and 100 characters")
+            String fullName
     ) {}
 
     public record ChangePasswordRequest(
             @NotBlank(message = "Current password is required")
+            @JsonAlias({"currentPassword", "oldPassword"})
             String oldPassword,
 
             @NotBlank(message = "New password is required")

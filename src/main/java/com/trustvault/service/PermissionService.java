@@ -25,6 +25,7 @@ public class PermissionService {
     private final DocumentPermissionRepository permissionRepository;
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
+    private final com.trustvault.repository.ProjectMemberRepository projectMemberRepository;
     private final DocumentAuthorizationService authorizationService;
     private final AuditService auditService;
 
@@ -32,12 +33,14 @@ public class PermissionService {
             DocumentPermissionRepository permissionRepository,
             DocumentRepository documentRepository,
             UserRepository userRepository,
+            com.trustvault.repository.ProjectMemberRepository projectMemberRepository,
             DocumentAuthorizationService authorizationService,
             AuditService auditService
     ) {
         this.permissionRepository = permissionRepository;
         this.documentRepository = documentRepository;
         this.userRepository = userRepository;
+        this.projectMemberRepository = projectMemberRepository;
         this.authorizationService = authorizationService;
         this.auditService = auditService;
     }
@@ -72,6 +75,13 @@ public class PermissionService {
 
         if (targetUser.getId().equals(owner.getId())) {
             throw new BadRequestException("Owner already has full access to this document");
+        }
+
+        if (document.getProject() != null) {
+            Optional<com.trustvault.model.ProjectMember> pmOpt = projectMemberRepository.findByProjectIdAndUserId(document.getProject().getId(), targetUser.getId());
+            if (pmOpt.isPresent() && pmOpt.get().isSuspended()) {
+                throw new BadRequestException("Cannot grant permissions: User is suspended from project " + document.getProject().getName());
+            }
         }
 
         Instant calculatedExpiresAt;
@@ -162,6 +172,7 @@ public class PermissionService {
     @Transactional(readOnly = true)
     public List<PermissionDto> getMyPermissions(User user) {
         return permissionRepository.findByUserOrderByGrantedAtDesc(user).stream()
+                .filter(p -> authorizationService.hasActiveAccess(user, p.getDocument()))
                 .map(this::mapToDto)
                 .toList();
     }
@@ -184,7 +195,15 @@ public class PermissionService {
         DocumentPermission permission = permissionRepository.findById(permissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Permission grant not found"));
 
-        authorizationService.requireManagementAccess(owner, permission.getDocument());
+        try {
+            authorizationService.requireManagementAccess(owner, permission.getDocument());
+        } catch (ForbiddenException e) {
+            String clientIp = SecurityUtils.getClientIp(httpRequest);
+            String userAgent = SecurityUtils.getUserAgent(httpRequest);
+            auditService.logEvent(owner, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PERMISSION", permissionId.toString(),
+                    AuditResult.DENIED, "Update permission denied: " + e.getMessage(), clientIp, userAgent);
+            throw e;
+        }
 
         Instant calculatedExpiresAt;
         if (request.durationDays() != null) {

@@ -6,6 +6,9 @@ export interface UserProfile {
   fullName: string
   role: 'ROLE_ADMIN' | 'ROLE_OWNER' | 'ROLE_MANAGER' | 'ROLE_VIEWER' | 'ROLE_WORKSHOP_MEMBER' | 'ROLE_EDITOR'
   active: boolean
+  createdAt?: string
+  passwordLastChangedAt?: string
+  lastLoginAt?: string | null
 }
 
 export interface DocumentItem {
@@ -376,14 +379,36 @@ export const api = {
   },
 
   async getMe(): Promise<UserProfile> {
-    return request<UserProfile>('/auth/me')
+    const data = await request<UserProfile>('/auth/me')
+    if (typeof window !== 'undefined' && data) {
+      const existing = getUser() || {}
+      localStorage.setItem('trustvault_user', JSON.stringify({ ...existing, ...data }))
+    }
+    return data
+  },
+
+  async updateProfile(fullName: string): Promise<UserProfile> {
+    const data = await request<UserProfile>('/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName }),
+    })
+    if (typeof window !== 'undefined' && data) {
+      const existing = getUser() || {}
+      localStorage.setItem('trustvault_user', JSON.stringify({ ...existing, ...data }))
+    }
+    return data
   },
 
   async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
     return request<{ message: string }>('/auth/change-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentPassword, newPassword }),
+      body: JSON.stringify({
+        oldPassword: currentPassword,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      }),
     })
   },
 
@@ -430,6 +455,10 @@ export const api = {
     })
   },
 
+  async updateDocumentMetadata(id: string, data: { title: string; category?: string }): Promise<DocumentItem> {
+    return this.updateDocument(id, data)
+  },
+
   async deleteDocument(id: string): Promise<void> {
     return request<void>(`/documents/${id}`, {
       method: 'DELETE',
@@ -444,6 +473,19 @@ export const api = {
 
   getDownloadUrl(token: string): string {
     return `${API_BASE}/documents/download/${token}`
+  },
+
+  async getDocumentDownload(id: string, filename?: string): Promise<void> {
+    const tokenRes = await this.getDownloadToken(id)
+    const downloadUrl = this.getDownloadUrl(tokenRes.token)
+    if (typeof window !== 'undefined') {
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      if (filename) a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
   },
 
   // Permissions
@@ -465,6 +507,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
+  },
+
+  async grantDocumentPermission(documentId: string, data: { userEmail: string; permissionLevel: 'READ' | 'EDIT'; expiresAt?: string | null }): Promise<PermissionItem> {
+    return this.grantPermission(documentId, data)
   },
 
   async updatePermission(permissionId: string, data: { permissionLevel: 'READ' | 'EDIT'; expiresAt?: string | null }): Promise<PermissionItem> {
@@ -676,20 +722,36 @@ export const api = {
   },
 
   // Renewal Requests
-  async createRenewal(data: { permissionId: string; reason: string; requestedExtensionDays: number }): Promise<RenewalRequestItem> {
+  async createRenewal(data: { permissionId?: string; documentId?: string; projectId?: string; reason: string; requestedExtensionDays?: number; durationDays?: number }): Promise<RenewalRequestItem> {
+    const payload = {
+      ...data,
+      requestedExtensionDays: data.requestedExtensionDays || data.durationDays || 7,
+    }
     return request<RenewalRequestItem>('/renewals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     })
+  },
+
+  async createRenewalRequest(data: { permissionId?: string; documentId?: string; projectId?: string; reason: string; requestedExtensionDays?: number; durationDays?: number }): Promise<RenewalRequestItem> {
+    return this.createRenewal(data)
   },
 
   async getOwnerRenewals(): Promise<RenewalRequestItem[]> {
     return request<RenewalRequestItem[]>('/renewals/owner')
   },
 
+  async getOwnerRenewalRequests(): Promise<RenewalRequestItem[]> {
+    return this.getOwnerRenewals()
+  },
+
   async getMyRenewals(): Promise<RenewalRequestItem[]> {
     return request<RenewalRequestItem[]>('/renewals/my')
+  },
+
+  async getMyRenewalRequests(): Promise<RenewalRequestItem[]> {
+    return this.getMyRenewals()
   },
 
   async reviewRenewal(id: string, data: { approved: boolean; reviewNote?: string; extensionDays?: number }): Promise<RenewalRequestItem> {

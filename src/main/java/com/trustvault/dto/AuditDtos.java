@@ -22,7 +22,9 @@ public class AuditDtos {
             String ipAddress,
             String userAgent,
             String previousHash,
-            String currentHash
+            String currentHash,
+            UUID clientId,
+            UUID projectId
     ) {}
 
     public record AuditVerificationResponse(

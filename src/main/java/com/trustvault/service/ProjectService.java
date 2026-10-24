@@ -573,6 +573,11 @@ public class ProjectService {
                 throw new ForbiddenException("Cannot share document with user from another client organization");
             }
 
+            Optional<ProjectMember> pmOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(), targetUser.getId());
+            if (pmOpt.isPresent() && pmOpt.get().isSuspended()) {
+                throw new BadRequestException("Cannot share document with suspended member: " + targetUser.getEmail());
+            }
+
             Instant calculatedExpiry;
             if (assignment.durationDays() != null) {
                 if (assignment.durationDays() < 1 || assignment.durationDays() > 30) {
@@ -681,7 +686,7 @@ public class ProjectService {
 
     private ProjectMemberDto mapToMemberDto(ProjectMember m, Project project) {
         long accessibleCount = 0;
-        if (project != null) {
+        if (project != null && !m.isSuspended()) {
             List<Document> pDocs = documentRepository.findByProject(project);
             for (Document d : pDocs) {
                 Optional<DocumentPermission> perm = permissionRepository.findByDocumentAndUser(d, m.getUser());

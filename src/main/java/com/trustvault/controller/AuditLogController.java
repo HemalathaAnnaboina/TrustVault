@@ -37,6 +37,7 @@ public class AuditLogController {
     }
 
     @GetMapping("/my-activity")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<List<AuditLogDto>> getMyActivity() {
         User currentUser = SecurityUtils.getCurrentUser();
         return ResponseEntity.ok(auditService.getMyActivityLogs(currentUser));

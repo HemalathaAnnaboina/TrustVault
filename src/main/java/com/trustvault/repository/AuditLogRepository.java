@@ -29,6 +29,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
     List<AuditLog> findByActionOrderByTimestampDesc(AuditAction action);
 
+    Optional<AuditLog> findFirstByActorEmailAndActionOrderByTimestampDesc(String actorEmail, AuditAction action);
+
     long count();
 
     long countByResult(AuditResult result);

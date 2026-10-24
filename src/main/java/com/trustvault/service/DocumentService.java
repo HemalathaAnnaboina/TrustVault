@@ -95,7 +95,14 @@ public class DocumentService {
         }
 
         // Store file in private vault with magic bytes validation and SHA-256 calculation
-        StorageService.StorageResult storageResult = storageService.store(file);
+        StorageService.StorageResult storageResult;
+        try {
+            storageResult = storageService.store(file);
+        } catch (BadRequestException e) {
+            auditService.logEvent(uploader, AuditAction.MALFORMED_UPLOAD_REJECTED, "DOCUMENT", null,
+                    AuditResult.DENIED, "Upload rejected: " + e.getMessage(), clientIp, userAgent);
+            throw e;
+        }
 
         Document document = new Document(
                 title.trim(),
@@ -160,7 +167,14 @@ public class DocumentService {
                 continue;
             }
 
-            StorageService.StorageResult storageResult = storageService.store(file);
+            StorageService.StorageResult storageResult;
+            try {
+                storageResult = storageService.store(file);
+            } catch (BadRequestException e) {
+                auditService.logEvent(uploader, AuditAction.MALFORMED_UPLOAD_REJECTED, "DOCUMENT", null,
+                        AuditResult.DENIED, "Upload rejected for " + file.getOriginalFilename() + ": " + e.getMessage(), clientIp, userAgent);
+                throw e;
+            }
 
             String title = file.getOriginalFilename();
             Document document = new Document(
@@ -265,24 +279,57 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public List<DocumentDto> getDocumentsForUser(User user, String query) {
-        return getDocumentsForUser(user, query, null);
+        return getDocumentsForUser(user, query, null, null);
     }
 
     @Transactional(readOnly = true)
     public List<DocumentDto> getDocumentsForUser(User user, String query, UUID projectId) {
+        return getDocumentsForUser(user, query, projectId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getDocumentsForUser(User user, String query, UUID projectId, HttpServletRequest httpRequest) {
+        String clientIp = httpRequest != null ? SecurityUtils.getClientIp(httpRequest) : null;
+        String userAgent = httpRequest != null ? SecurityUtils.getUserAgent(httpRequest) : null;
+
+        if (user == null || !user.isActive()) {
+            auditService.logEvent(user, AuditAction.INACTIVE_USER_ACCESS_ATTEMPT, "DOCUMENT", null,
+                    AuditResult.DENIED, "Document list rejected: Account is inactive", clientIp, userAgent);
+            throw new ForbiddenException("Your account is deactivated. Contact your administrator.");
+        }
+
         if (projectId != null) {
             Project project = projectRepository.findById(projectId)
                     .orElseThrow(() -> new ResourceNotFoundException("Project not found with ID: " + projectId));
 
             // Tenant isolation
             if (user.getClient() != null && project.getClient() != null && !user.getClient().getId().equals(project.getClient().getId())) {
+                auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                        AuditResult.DENIED, "Access denied: Project belongs to another client", clientIp, userAgent);
                 throw new ForbiddenException("Access denied: Project belongs to another client");
             }
 
             boolean isProjectOwner = project.getOwner() != null && project.getOwner().getId().equals(user.getId());
-            boolean isMember = isProjectOwner || projectMemberRepository.existsByProjectAndUser(project, user);
-            if (!isMember && user.getRole() != Role.ROLE_ADMIN) {
-                throw new ForbiddenException("Access denied: You are not authorized to view documents in this project");
+            boolean isAdmin = user.isAdmin();
+
+            if (!isProjectOwner && !isAdmin) {
+                Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectAndUser(project, user);
+                if (memberOpt.isEmpty()) {
+                    auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                            AuditResult.DENIED, "Access denied: Not a member of project " + project.getName(), clientIp, userAgent);
+                    throw new ForbiddenException("Access denied: You are not authorized to view documents in this project");
+                }
+                ProjectMember member = memberOpt.get();
+                if (member.isSuspended()) {
+                    auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                            AuditResult.DENIED, "Access denied: Project membership is suspended for project " + project.getName(), clientIp, userAgent);
+                    throw new ForbiddenException("Access denied: Your project membership has been suspended");
+                }
+                if (!member.isCanView()) {
+                    auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "PROJECT", project.getId().toString(),
+                            AuditResult.DENIED, "Access denied: No view permission for project " + project.getName(), clientIp, userAgent);
+                    throw new ForbiddenException("Access denied: You do not have view access to this project");
+                }
             }
 
             List<Document> projectDocs = documentRepository.findByProject(project);
@@ -307,6 +354,12 @@ public class DocumentService {
         } else {
             // Viewer only discovers documents where active, valid permission exists
             docs = documentRepository.findDocumentsAccessibleByUser(user);
+        }
+
+        if (user.getRole() != Role.ROLE_ADMIN) {
+            docs = docs.stream()
+                    .filter(d -> authorizationService.hasActiveAccess(user, d))
+                    .toList();
         }
 
         if (query != null && !query.isBlank()) {
@@ -458,10 +511,19 @@ public class DocumentService {
 
     @Transactional
     public DownloadPayload downloadFileByToken(String tokenString, HttpServletRequest httpRequest) {
-        DownloadToken token = downloadTokenRepository.findByTokenValue(tokenString)
-                .orElseThrow(() -> new BadRequestException("Invalid or expired download token"));
+        String clientIp = SecurityUtils.getClientIp(httpRequest);
+        String userAgent = SecurityUtils.getUserAgent(httpRequest);
+
+        DownloadToken token = downloadTokenRepository.findByTokenValue(tokenString).orElse(null);
+        if (token == null) {
+            auditService.logEvent(null, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "DOCUMENT", null,
+                    AuditResult.DENIED, "Download rejected: Invalid or unknown download token", clientIp, userAgent);
+            throw new BadRequestException("Invalid or expired download token");
+        }
 
         if (!token.isValid()) {
+            auditService.logEvent(null, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "DOCUMENT", token.getDocumentId() != null ? token.getDocumentId().toString() : null,
+                    AuditResult.DENIED, "Download token is expired or has already been used", clientIp, userAgent);
             throw new BadRequestException("Download token is expired or has already been used");
         }
 
@@ -472,8 +534,6 @@ public class DocumentService {
         User tokenUser = userRepository.findById(token.getUserId())
                 .orElseThrow(() -> new ForbiddenException("User associated with download token no longer exists"));
 
-        String clientIp = SecurityUtils.getClientIp(httpRequest);
-        String userAgent = SecurityUtils.getUserAgent(httpRequest);
 
         if (!tokenUser.isActive()) {
             auditService.logEvent(tokenUser, AuditAction.INACTIVE_USER_ACCESS_ATTEMPT, "DOCUMENT", document.getId().toString(),
@@ -569,14 +629,21 @@ public class DocumentService {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
-        authorizationService.requireReadAccess(user, document);
+        String clientIp = SecurityUtils.getClientIp(httpRequest);
+        String userAgent = SecurityUtils.getUserAgent(httpRequest);
+
+        try {
+            authorizationService.requireReadAccess(user, document);
+        } catch (ForbiddenException e) {
+            auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "DOCUMENT", documentId.toString(),
+                    AuditResult.DENIED, "Star document denied: " + e.getMessage(), clientIp, userAgent);
+            throw e;
+        }
 
         if (!starredDocumentRepository.existsByUserAndDocument(user, document)) {
             starredDocumentRepository.save(new StarredDocument(user, document));
         }
 
-        String clientIp = SecurityUtils.getClientIp(httpRequest);
-        String userAgent = SecurityUtils.getUserAgent(httpRequest);
         auditService.logEvent(user, AuditAction.DOCUMENT_VIEW, "DOCUMENT", documentId.toString(),
                 AuditResult.SUCCESS, "Starred document: " + document.getTitle(), clientIp, userAgent);
 
@@ -588,12 +655,19 @@ public class DocumentService {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
-        authorizationService.requireReadAccess(user, document);
+        String clientIp = SecurityUtils.getClientIp(httpRequest);
+        String userAgent = SecurityUtils.getUserAgent(httpRequest);
+
+        try {
+            authorizationService.requireReadAccess(user, document);
+        } catch (ForbiddenException e) {
+            auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "DOCUMENT", documentId.toString(),
+                    AuditResult.DENIED, "Unstar document denied: " + e.getMessage(), clientIp, userAgent);
+            throw e;
+        }
 
         starredDocumentRepository.deleteByUserAndDocument(user, document);
 
-        String clientIp = SecurityUtils.getClientIp(httpRequest);
-        String userAgent = SecurityUtils.getUserAgent(httpRequest);
         auditService.logEvent(user, AuditAction.DOCUMENT_VIEW, "DOCUMENT", documentId.toString(),
                 AuditResult.SUCCESS, "Unstarred document: " + document.getTitle(), clientIp, userAgent);
 
@@ -646,7 +720,7 @@ public class DocumentService {
         List<DocumentDto> recents = new ArrayList<>();
         for (UUID docId : seenDocIds) {
             documentRepository.findById(docId).ifPresent(d -> {
-                if (!"NONE".equals(authorizationService.determineAccessLevel(user, d))) {
+                if (authorizationService.hasActiveAccess(user, d)) {
                     recents.add(mapToDto(d, user));
                 }
             });
@@ -661,7 +735,16 @@ public class DocumentService {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
-        authorizationService.requireReadAccess(user, document);
+        String clientIp = SecurityUtils.getClientIp(httpRequest);
+        String userAgent = SecurityUtils.getUserAgent(httpRequest);
+
+        try {
+            authorizationService.requireReadAccess(user, document);
+        } catch (ForbiddenException e) {
+            auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "DOCUMENT", documentId.toString(),
+                    AuditResult.DENIED, "Document versions denied: " + e.getMessage(), clientIp, userAgent);
+            throw e;
+        }
 
         List<DocumentVersion> versions = documentVersionRepository.findByDocumentOrderByVersionNumberDesc(document);
         return versions.stream().map(v -> new DocumentVersionDto(
@@ -685,10 +768,17 @@ public class DocumentService {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
-        authorizationService.requireReadAccess(user, document);
-
         String clientIp = SecurityUtils.getClientIp(httpRequest);
         String userAgent = SecurityUtils.getUserAgent(httpRequest);
+
+        try {
+            authorizationService.requireReadAccess(user, document);
+        } catch (ForbiddenException e) {
+            auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "DOCUMENT", documentId.toString(),
+                    AuditResult.DENIED, "Document preview denied: " + e.getMessage(), clientIp, userAgent);
+            throw e;
+        }
+
         auditService.logEvent(user, AuditAction.DOCUMENT_VIEW, "DOCUMENT", documentId.toString(),
                 AuditResult.SUCCESS, "Accessed document preview: " + document.getTitle(), clientIp, userAgent);
 

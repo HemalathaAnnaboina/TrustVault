@@ -7,6 +7,7 @@ import com.trustvault.service.RenewalRequestService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +33,7 @@ public class RenewalRequestController {
     }
 
     @GetMapping("/owner")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<List<RenewalRequestDto>> getRenewalsForOwner() {
         User owner = SecurityUtils.getCurrentUser();
         return ResponseEntity.ok(renewalRequestService.getPendingRenewalsForOwner(owner));
@@ -44,6 +46,7 @@ public class RenewalRequestController {
     }
 
     @PostMapping("/{id}/review")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<RenewalRequestDto> reviewRenewal(
             @PathVariable UUID id,
             @RequestBody ReviewRenewalRequest review,

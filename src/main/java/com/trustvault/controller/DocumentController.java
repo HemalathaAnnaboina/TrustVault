@@ -30,10 +30,11 @@ public class DocumentController {
     @GetMapping
     public ResponseEntity<List<DocumentDto>> getDocuments(
             @RequestParam(value = "query", required = false) String query,
-            @RequestParam(value = "projectId", required = false) UUID projectId
+            @RequestParam(value = "projectId", required = false) UUID projectId,
+            HttpServletRequest httpRequest
     ) {
         User currentUser = SecurityUtils.getCurrentUser();
-        return ResponseEntity.ok(documentService.getDocumentsForUser(currentUser, query, projectId));
+        return ResponseEntity.ok(documentService.getDocumentsForUser(currentUser, query, projectId, httpRequest));
     }
 
     @PostMapping(value = {"", "/upload"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

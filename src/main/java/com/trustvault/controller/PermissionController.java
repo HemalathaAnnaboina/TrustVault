@@ -7,6 +7,7 @@ import com.trustvault.service.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +24,7 @@ public class PermissionController {
     }
 
     @PostMapping("/documents/{documentId}/permissions")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<PermissionDto> grantPermission(
             @PathVariable UUID documentId,
             @Valid @RequestBody GrantPermissionRequest request,
@@ -33,12 +35,14 @@ public class PermissionController {
     }
 
     @GetMapping("/documents/{documentId}/permissions")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<List<PermissionDto>> getDocumentPermissions(@PathVariable UUID documentId) {
         User owner = SecurityUtils.getCurrentUser();
         return ResponseEntity.ok(permissionService.getPermissionsForDocument(documentId, owner));
     }
 
     @DeleteMapping("/permissions/{permissionId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<Void> revokePermission(
             @PathVariable UUID permissionId,
             HttpServletRequest httpRequest
@@ -55,12 +59,14 @@ public class PermissionController {
     }
 
     @GetMapping("/permissions/owner")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<List<PermissionDto>> getOwnerPermissions() {
         User user = SecurityUtils.getCurrentUser();
         return ResponseEntity.ok(permissionService.getOwnerPermissions(user));
     }
 
     @PutMapping("/permissions/{permissionId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<PermissionDto> updatePermission(
             @PathVariable UUID permissionId,
             @Valid @RequestBody UpdatePermissionRequest request,
@@ -71,6 +77,7 @@ public class PermissionController {
     }
 
     @PostMapping("/permissions/bulk")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_OWNER')")
     public ResponseEntity<BulkGrantResponse> bulkGrantPermissions(
             @Valid @RequestBody BulkGrantRequest request,
             HttpServletRequest httpRequest

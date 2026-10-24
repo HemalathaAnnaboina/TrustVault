@@ -24,19 +24,22 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditService auditService;
     private final com.trustvault.repository.PasswordSetupTokenRepository passwordSetupTokenRepository;
+    private final com.trustvault.repository.AuditLogRepository auditLogRepository;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             AuditService auditService,
-            com.trustvault.repository.PasswordSetupTokenRepository passwordSetupTokenRepository
+            com.trustvault.repository.PasswordSetupTokenRepository passwordSetupTokenRepository,
+            com.trustvault.repository.AuditLogRepository auditLogRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.auditService = auditService;
         this.passwordSetupTokenRepository = passwordSetupTokenRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Transactional
@@ -121,13 +124,45 @@ public class AuthService {
     }
 
     public UserProfileResponse getCurrentProfile(User user) {
+        java.time.Instant passwordLastChangedAt = auditLogRepository
+                .findFirstByActorEmailAndActionOrderByTimestampDesc(user.getEmail(), AuditAction.USER_PASSWORD_CHANGED)
+                .map(com.trustvault.model.AuditLog::getTimestamp)
+                .orElse(user.getUpdatedAt());
+
+        java.time.Instant lastLoginAt = auditLogRepository
+                .findFirstByActorEmailAndActionOrderByTimestampDesc(user.getEmail(), AuditAction.LOGIN_SUCCESS)
+                .map(com.trustvault.model.AuditLog::getTimestamp)
+                .orElse(null);
+
         return new UserProfileResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                user.isActive()
+                user.isActive(),
+                user.getCreatedAt(),
+                passwordLastChangedAt,
+                lastLoginAt
         );
+    }
+
+    @Transactional
+    public UserProfileResponse updateProfile(User user, UpdateProfileRequest request, HttpServletRequest httpRequest) {
+        String clientIp = SecurityUtils.getClientIp(httpRequest);
+        String userAgent = SecurityUtils.getUserAgent(httpRequest);
+
+        if (request.fullName() == null || request.fullName().trim().length() < 2 || request.fullName().trim().length() > 100) {
+            throw new BadRequestException("Full name must be between 2 and 100 characters");
+        }
+
+        String oldName = user.getFullName();
+        user.setFullName(request.fullName().trim());
+        User saved = userRepository.save(user);
+
+        auditService.logEvent(saved, AuditAction.USER_UPDATED, "USER", saved.getId().toString(),
+                AuditResult.SUCCESS, "User updated profile full name from '" + oldName + "' to '" + saved.getFullName() + "'", clientIp, userAgent);
+
+        return getCurrentProfile(saved);
     }
 
     @Transactional
@@ -135,11 +170,11 @@ public class AuthService {
         String clientIp = SecurityUtils.getClientIp(httpRequest);
         String userAgent = SecurityUtils.getUserAgent(httpRequest);
 
-        // Security check: Workspace users (Viewer, Editor, and Workshop) cannot change passwords through settings
-        if (user.getRole() == Role.ROLE_VIEWER || user.getRole() == Role.ROLE_EDITOR || user.getRole() == Role.ROLE_WORKSHOP) {
+        // Security check: Workshop users (Members, Editors, and Viewers) cannot change passwords through settings or direct API requests
+        if (user.isWorkshopMember() || user.getRole() == Role.ROLE_WORKSHOP_MEMBER || user.getRole() == Role.ROLE_VIEWER || user.getRole() == Role.ROLE_EDITOR || user.getRole() == Role.ROLE_WORKSHOP) {
             auditService.logEvent(user, AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, "USER", user.getId().toString(),
-                    AuditResult.DENIED, "Password change rejected: Disabled for workspace users", clientIp, userAgent);
-            throw new com.trustvault.exception.ForbiddenException("Password change is disabled for workspace users. Please contact your administrator.");
+                    AuditResult.DENIED, "Password change rejected: Disabled for workshop users", clientIp, userAgent);
+            throw new com.trustvault.exception.ForbiddenException("Password change is disabled for workshop users. Please contact your administrator.");
         }
 
         if (!passwordEncoder.matches(request.oldPassword(), user.getPasswordHash())) {
