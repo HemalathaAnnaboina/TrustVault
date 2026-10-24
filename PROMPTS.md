@@ -1,66 +1,180 @@
-# TrustVault AI Engineering Journal & Decisions Log (PROMPTS.md)
+Entry 01 — Document-Level Authorization and IDOR Prevention
 
-**Project**: TrustVault — Complete Secure Document Sharing and Audit System  
-**Date**: October 19, 2026  
-**Stack**: Java 23, Spring Boot 3.4.3, Spring Security, JPA/Hibernate, H2 Relational DB, Next.js 16.4.0 (Turbopack), Tailwind CSS  
+Date: [20/10/2026]
+Role: Manager / Workshop Member
+Category: Security — Authorization and Access Control
+Technology: Java, Spring Boot, Spring Security, PostgreSQL
 
----
+1. Development Context
 
-## 1. Architectural & Security Decisions
+While building TrustVault, I wanted managers to share confidential documents with workshop members without exposing other documents in the same project.
 
-### 1.1 Dynamic Permission Expiry vs. Scheduled Cleanup
-- **Decision**: In `DocumentAuthorizationService`, permission expiry is checked dynamically on *every single request* (`if (expiresAt != null && Instant.now().isAfter(expiresAt)) throw ForbiddenException`).
-- **Rationale**: Relying solely on a periodic cron job or background scheduler introduces a vulnerability window where an expired permission could still be used to view, download, or edit documents between scheduler intervals. The background scheduler (`PermissionExpiryScheduler`) is utilized strictly for status updates, notifications, and audit synchronization—not as the security perimeter.
+Initially, I was mainly focused on implementing role-based access control for Admin, Manager, and Workshop users. But I realized that checking the user's role alone would not be enough to protect individual documents.
 
-### 1.2 Cryptographic Hash-Chained Audit Trail (Tamper Detection)
-- **Decision**: Implemented an append-only cryptographic hash chain where each audit entry calculates:  
-  `currentHash = SHA-256(previousHash | timestamp | actorEmail | action | resourceType | resourceId | result | reason)`.
-- **Rationale**: Prevents undetected modifications, insertions, or deletions within the database. The system includes an automated integrity verification API (`/api/audit-logs/verify-integrity`) that traces the chain from the Genesis block (`00000000...`) to the latest record.
+For example, a workshop member might have permission to read one document but should not automatically receive access to every document uploaded by the manager.
 
-### 1.3 Private Storage Vault Architecture
-- **Decision**: Files are never stored under public web folders or with user-provided names. Uploaded files receive a cryptographically random UUID (`storageKey`) and are written to an isolated directory (`data/vault/{storageKey}`).
-- **Rationale**: Neutralizes directory traversal attacks, prevents unauthorized file overwriting, and guarantees that every document download requires passing through backend authentication and authorization filters.
+This made me focus on document-level authorization rather than relying only on project membership.
 
-### 1.4 Single-Use Time-Bounded Download Tokens
-- **Decision**: File downloads utilize short-lived (60-second), single-use UUID download tokens generated only after explicit permission verification.
-- **Rationale**: Eliminates long-lived or permanent document URLs. Even if a user generates a token, immediately revoking their permission will prevent reuse once the token is consumed.
+2. My Prompt to AI
 
----
+Act as a senior Java Spring Boot security developer and review the existing document authorization flow in my TrustVault application.
 
-## 2. AI Mistakes, Failure Logs & Corrections
+I have three roles: Admin, Manager, and Workshop Member. Managers create projects, upload confidential files, and grant READ or EDIT permissions to selected workshop members.
 
-### Mistake 1: Rate Limiter Tripping in Automated Test Setup
-- **Symptom**: During initial execution of `TrustVaultSecurityTests`, 12 out of 14 tests failed with `Status expected:<200> but was:<429> (Too Many Requests)`.
-- **Root Cause**: The production configuration limited login attempts to 10 per minute per IP address. The test suite's `setUp()` method executed 4 MockMvc HTTP logins before each of the 14 tests (56 rapid logins in < 2 seconds), tripping the rate limiter.
-- **Correction**: Updated `TrustVaultSecurityTests.setUp()` to generate signed JWT tokens directly using `jwtTokenProvider.generateToken(user)` (a standard unit/integration testing best practice) and added `src/test/resources/application.properties` with an elevated test rate limit.
+Here's my concern: Suppose Manager A uploads salary.pdf and contract.pdf into the same project. Sita is a workshop member who has READ access only to salary.pdf.
 
-### Mistake 2: Path Traversal Validation Order in File Uploads
-- **Symptom**: Security Test 13 (`test13_uploadValidationRejectsDisallowedOrMalformedFiles`) failed because uploading `../../etc/passwd.pdf` returned HTTP 200 instead of HTTP 400.
-- **Root Cause**: `StorageService` called `Paths.get(rawFilename).getFileName().toString()` before checking for `..`. On Windows/Java, `Paths.get("../../etc/passwd.pdf").getFileName()` stripped the traversal path and returned `passwd.pdf`, which then passed the subsequent traversal check.
-- **Correction**: Added an immediate path-traversal check directly on `rawFilename` before path normalization:
-  ```java
-  if (rawFilename.contains("..") || rawFilename.contains("/") || rawFilename.contains("\\") || rawFilename.contains("\0")) {
-      throw new BadRequestException("Filename contains invalid or dangerous path traversal characters");
-  }
-  ```
+What happens if Sita changes the document ID in the API URL and tries to open contract.pdf?
 
-### Mistake 3: Unhandled Exception in Audit Immutability Test
-- **Symptom**: Security Test 14 (`test14_usersCannotModifyOrDeleteProtectedAuditRecords`) failed with `Status expected:<403> but was:<500>`.
-- **Root Cause**: `auditService.deleteAuditRecord()` threw `UnsupportedOperationException`, which fell through `GlobalExceptionHandler` to the generic 500 error handler.
-- **Correction**: Added an explicit `@ExceptionHandler(UnsupportedOperationException.class)` in `GlobalExceptionHandler` returning HTTP 403 Forbidden with the tamper protection reason.
+For example:
 
----
+GET /api/documents/101/download — Allowed
+GET /api/documents/102/download — Must be denied
 
-## 3. Verification & Test Execution Results
+Act like a security reviewer. Inspect the controller, service, and permission-checking logic. Identify possible IDOR vulnerabilities and explain the root cause before making changes.
 
-- **Compiler**: Java 23 (javac), Spring Boot 3.4.3 Maven Plugin
-- **Surefire Test Suite**: `TrustVaultSecurityTests.java` (14 automated security tests)
-- **Result**:
-  ```text
-  [INFO] Running com.trustvault.TrustVaultSecurityTests
-  [INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 17.86 s
-  [INFO] BUILD SUCCESS
-  ```
-- **Live Server Test**:
-  - Spring Boot Tomcat running at `http://localhost:8080` (HTTP 200 on login & API routes)
-  - Next.js Turbopack dev server running at `http://localhost:3000` (HTTP 200 on `/`)
+Constraints:
+
+Enforce permissions in the Spring Boot backend, not only in React.
+
+Keep READ and EDIT permissions separate.
+
+Do not introduce project-level passwords.
+
+Check project membership and document permissions independently.
+
+Do not expose documents belonging to another client or project.
+
+Preserve legitimate Manager and Admin functionality.
+
+Add negative authorization tests for direct API requests.
+
+Fix the problem without unnecessarily rewriting existing working features.
+
+3. What AI Produced
+
+The AI suggested enforcing authorization at the service layer before returning document metadata or content.
+
+The proposed approach involved checking the authenticated user's identity, the document's project, and the user's document-specific READ or EDIT permissions.
+
+The recommendation also highlighted that authorization must apply to direct API calls, not just the document list displayed in the frontend.
+
+This is a summary of the proposed approach; the original AI output should be checked before submission.
+
+4. What Went Wrong
+
+The main security concern was that role-based authorization and document-level authorization solve different problems.
+
+For example, a check such as:
+
+@PreAuthorize("hasRole('WORKSHOP')")
+@GetMapping("/{documentId}/download")
+
+only checks whether the user has the Workshop role.
+
+It does not automatically verify whether the user is permitted to download the requested document.
+
+If no additional authorization exists in the service layer, this can lead to an Insecure Direct Object Reference (IDOR) vulnerability.
+
+A workshop member could potentially attempt to access another document by changing its identifier.
+
+Important: This is an illustrative unsafe pattern, not a confirmed excerpt from my repository.
+
+5. My Correction and Refined Instructions
+
+I wanted the application to validate the actual document permission rather than trusting the user's role.
+
+I refined the instructions to require the following checks:
+
+Identify the authenticated user from the verified security context.
+
+Load the requested document and its project information.
+
+Verify that the user's account is active.
+
+Verify that the user has an active, authorized relationship with the project.
+
+Check whether the user owns the document or has an applicable READ/EDIT permission.
+
+Check whether the permission has expired or been revoked.
+
+Deny unauthorized requests and record the attempt in the audit trail.
+
+I also emphasized that an expired or revoked permission must not remain usable just because the user has a valid JWT.
+
+6. Example Security Logic
+
+The following is simplified Java pseudocode illustrating the intended authorization approach, not a claim about the exact implementation.
+
+public void requireDocumentAccess(
+        User currentUser,
+        Document document,
+        PermissionType requiredPermission) {
+
+    if (!currentUser.isActive()) {
+        throw new AccessDeniedException(
+            "Account is inactive");
+    }
+
+    if (!membershipService.hasActiveMembership(
+            currentUser.getId(),
+            document.getProject().getId())) {
+
+        throw new AccessDeniedException(
+            "Project access denied");
+    }
+
+    boolean allowed =
+        permissionService.hasActivePermission(
+            currentUser.getId(),
+            document.getId(),
+            requiredPermission
+        );
+
+    if (!allowed) {
+        throw new AccessDeniedException(
+            "Document access denied");
+    }
+}
+
+In the actual implementation, document ownership and any legitimate administrative access must be handled according to the application's security policy. READ/EDIT implications, expiry, revocation, and cross-project isolation must also be enforced consistently.
+
+7. Security Verification
+
+I defined the following scenarios to verify the authorization behavior:
+
+Test scenario
+
+Expected result
+
+Sita downloads salary.pdf with READ permission
+
+Allowed
+
+Sita downloads contract.pdf without permission
+
+Denied
+
+Sita changes the document ID in the URL
+
+Denied if unauthorized
+
+Sita tries to edit with READ-only permission
+
+Denied
+
+Sita's permission expires
+
+Access denied
+
+Sita is suspended from the project
+
+Access through that membership denied
+
+A member requests a document from another client's project
+
+Denied
+
+An active authorized Manager accesses their own document
+
+Allowed
+
