@@ -9,7 +9,7 @@
 - **Backend API:** https://trustvault-7tsu.onrender.com
 - **Source repository:** https://github.com/HemalathaAnnaboina/TrustVault
 - **Frontend demo (Vercel):** https://trust-vault-881v.vercel.app/
-- **Demo video:https://www.loom.com/share/c805335c79394da6918667d6e1b866cc
+- **Demo video:https://youtu.be/yRVHwzR3nKA
 
 **Deployment note:** The Render free instance may take time to wake after inactivity. An HTTP 404 at the backend root (`/`) does not necessarily mean the API is unavailable; test a defined API endpoint instead.
 
